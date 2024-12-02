@@ -50,7 +50,6 @@ def torch_optim(f, x, iters, bounds, optimiser='ADAM', lr=0.1):
 # ============================================= 
 # pycma 
 # ============================================= 
-
 def CMA_ES(f, g, x, bounds, sigma=0.3):
     """
     Constrained optimisation using CMA-ES from pycma 
