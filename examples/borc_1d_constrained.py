@@ -92,5 +92,5 @@ if __name__ == "__main__":
         borc.step(new_x=new_x) 
     
     borc.acquisition = Acquisition(f="MU", g="BF")
-    new_x, max_acq = borc.optimize_acq(iters=200, nstarts=10, optimizer='ADAM', binary_constrained_opt=True)
+    new_x, max_acq = borc.optimize_acq(iters=200, nstarts=10, optimizer='ADAM', binary_constrained_opt=True) # TODO implement CMA-ES? 
     plot1d(problem, borc)

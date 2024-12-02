@@ -2,11 +2,11 @@ import torch
 from matplotlib import pyplot as plt
 import matplotlib
 
-# from borc2.surrogate import GPSurrogate
-# from borc2.problem import Problem 
-# from borc2.acquisition import Acquisition
-# from borc2.BORC import BORC
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from borc2.surrogate import Surrogate
+from borc2.problem import Problem 
+from borc2.acquisition import Acquisition
+from borc2.bayesopt import Borc
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # matplotlib.rcParams['font.family'] = 'sans-serif'
 # matplotlib.rcParams['font.sans-serif'] = ['Verdana']
@@ -50,27 +50,27 @@ import matplotlib
 #     # plt.savefig('borc_1d.png', dpi=400)
 #     plt.show()
 
-# class Model():
-#     def __call__(self, x):
-#         self.m = x**2 + 3 * torch.sin(3 * x)
+class Model():
+    def __call__(self, x):
+        self.m = x**2 + 3 * torch.sin(3 * x)
 
-#     def f(self):
-#         return self.m.flatten() 
+    def f(self):
+        return self.m.flatten() 
 
-# if __name__ == "__main__": 
+if __name__ == "__main__": 
 
-#     problem = Problem()
-#     model = Model()
-#     bounds = {"x": (-3, 3)}
-#     problem.set_bounds(bounds)
-#     problem.add_model(model)
-#     problem.add_objectives([model.f])
+    problem = Problem()
+    model = Model()
+    bounds = {"x": (-3, 3)}
+    problem.set_bounds(bounds)
+    problem.add_model(model)
+    problem.add_objectives([model.f])
     
-#     surrogate = GPSurrogate()
-#     acquisition = Acquisition(f="EI")
-#     borc = BORC(problem, surrogate, acquisition) 
-#     borc.cuda(device)
-#     borc.initialize(nsamples=6, sample_method="lhs") 
+    surrogate = Surrogate()
+    acquisition = Acquisition(f="EI")
+    borc = Borc(problem, surrogate, acquisition) 
+    borc.cuda(device)
+    borc.initialize(nsamples=6, sample_method="lhs") 
 
 #     iters = 3
 #     for i in range(iters): 

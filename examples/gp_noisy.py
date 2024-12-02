@@ -1,7 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
-
-from borc.surrogate.gp import HomoscedasticGP, NoiselessGP
+from borc2.gp import HomoscedasticGP
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 

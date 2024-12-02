@@ -1,7 +1,6 @@
 import torch
 from matplotlib import pyplot as plt
-
-from borc.surrogate.surrogate import NoiselessGP
+from borc2.gp import NoiselessGP
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
