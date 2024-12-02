@@ -32,31 +32,24 @@ class Borc():
         self.surrogate.cuda(device)
         self.device = device 
 
-    def initialize(self, nsamples='default', nsamples_xi_conjugate=1, nsamples_x_step_neighbours='default', sample_method="lhs", xbest=torch.tensor([0.0]), fbest=torch.tensor([0.0])):
+    def initialize(self, nsamples='default', sample_method="lhs", xbest=torch.tensor([0.0]), fbest=torch.tensor([0.0])):
         """
         Build surrogate GPs of problem objectives and constraints
 
         Parameters
         ----------
         nsamples : int
-            number of input points used to model GPs
-        nsamples_xi : int 
-            number of xi input points to use for each x point (only for MLHGPSurrogate)
+            number of input points used to initialise GPs
         
         """
         if nsamples == 'default':
-            n = self.problem.sample_xi().shape[1] # num stochastic parameters 
+            n = self.problem.sample_xi().shape[1] # no. stochastic parameters 
             nsamples = int((n+1)*(n+2) / 2) # Bichon et al. "Efficient global reliability analysis for nonlinear implicit performance functions." 2008.
-        
-        if nsamples_x_step_neighbours == 'default':
-            nsamples_x_step_neighbours = nsamples
 
         self.sample_method = sample_method 
         if self.surrogate.sample_method != None:
             self.sample_method = self.surrogate.sample_method 
 
-        self.surrogate.nsamples_x_step_neighbours = nsamples_x_step_neighbours
-        self.surrogate.nsamples_xi = nsamples_xi_conjugate
         self.surrogate.build(nsamples=nsamples, sample_method=sample_method) 
         self.xbest, self.fbest = xbest, fbest
         self.xbest, self.fbest = self.xbest.to(self.device), self.fbest.to(self.device)
@@ -94,98 +87,6 @@ class Borc():
             return torch.sum(acqf, dim=1) * torch.prod(acqg, dim=1) 
         else: 
             return torch.sum(acqf, dim=1) 
-        
-    # def penalty_eval_acquisition(self, x, penalty_factor=-1e20):
-    #     acqf = self.eval_acqf(x)
-    #     acqg = self.eval_acqg(x)
-    #     if acqg != []: 
-    #         # return torch.sum(acqf, dim=1) - torch.sum(t * torch.exp(-acqg)**2, dim=1) # exponential barrier 
-    #         # return torch.sum(acqf, dim=1) - torch.sum(t / acqg, dim=1) # reciprocal barrier
-    #         # print()
-    #         # print(f"x {x}")
-    #         # print(f"g {acqg}")
-    #         # # penalty = torch.sum(-t * torch.log(acqg + 1e-200), dim=1)
-    #         # penalty = torch.sum(-t * 1 / (acqg + 1e-8), dim=1)
-    #         # print(f"penalty {penalty}")
-    #         # print(f"result {torch.sum(acqf, dim=1) - torch.abs(penalty)}")
-    #         # return torch.sum(acqf, dim=1) - penalty 
-    #         penalty = torch.sum(penalty_factor * (1 - acqg), dim=1) # penalty if acqg < 1
-    #         objective = torch.sum(acqf, dim=1)
-
-    #         for i, (lower_bound, upper_bound) in enumerate(self.bounds_copy):
-    #             if torch.any(x[:, i] < lower_bound) or torch.any(x[:, i] > upper_bound):
-    #                 penalty += penalty_factor # penalty if x is out of bounds
-
-    #         if penalty.item() != 0: 
-    #             return None 
-
-    #         return objective 
-    #         # return objective + penalty
-    #     else: 
-    #         raise ValueError("Cannot use self.penalty_eval_acquisition with a problem which has no constraints")
-    
-    # def _optimize_acq(self, xpts, iters=10, optimize_x=False, optimize_xi=False, optimizer='ADAM', binary_constrained_opt=False):
-    #     """
-    #     Optimize the acquisition function using the start points xpts 
-
-    #     """ 
-    #     # set up bounds etc.
-    #     if optimize_xi or self.problem.param_bounds == None:
-    #         bounds = self.problem.param_dist.bounds()
-    #     elif optimize_x or self.problem.param_dist == None: 
-    #         bounds = self.bounds    
-    #     else:
-    #         bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
-
-    #     if xpts[0].shape != self.problem.sample_x()[0].shape:
-    #         bounds = bounds.repeat(xpts[0].shape[0], 1)
-
-    #     xpts = xpts.to(self.device)
-    #     bounds = bounds.to(self.device)
-
-    #     # for penalty method, important that we start with feasible points only
-    #     if binary_constrained_opt: 
-    #         feasible_mask = torch.prod(self.eval_acqg(xpts.squeeze(1)), dim=1) > 0 + 1e-4 # tol
-    #         if not any(feasible_mask): 
-    #             # warnings.warn("Barrier method could not find a feasible starting location, returning x=xpts[0], acq=0.0", UserWarning)
-    #             return xpts[0].clone().detach(), torch.tensor(0.0) 
-    #         xpts = xpts[feasible_mask] 
-
-    #     if binary_constrained_opt:
-    #         objective = self.penalty_eval_acquisition
-    #         self.bounds_copy = bounds
-    #     else: 
-    #         objective = self.eval_acquisition
-
-    #     self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
-    #     self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
-
-    #     # optimize 
-    #     for x in xpts: 
-    #         if optimizer == 'LBFGS': 
-    #             x, acq = borc.optimize.LBFGS(objective, x, iters, bounds, batch_mode=False) 
-    #         elif optimizer == 'ADAM':    
-    #             x, acq = borc.optimize.ADAM(objective, x, iters, bounds, batch_mode=False) 
-    #         # elif optimizer == 'COBYLA':
-    #         #     x, acq = borc.optimize.COBYLA(self.eval_acqf, self.eval_acqg, x, iters, bounds) # NOTE eval_acqf, eval_acqg
-    #         # elif optimizer == 'PSO':
-    #         #     x, acq = borc.optimize.PSO(lambda x: -objective(x), dim=x.size(-1), bounds=bounds, iters=iters)
-        
-    #         # # for barrier method, check feasability again
-    #         # if optimizer == 'ADAM': 
-    #         #     print(f"FINAL X {x}")
-    #         #     print(f"FINAL ACQ {acq}")
-    #         #     # acq = self.eval_acqf(x) if all(self.eval_acqg(x) > 0) else torch.tensor(0.0) 
-    #         #     # print(acq)
-    #         #     print()
-
-    #             # choose best from multiple starts
-    #             with torch.no_grad(): 
-    #                 if acq > max_acq:   
-    #                     max_acq = acq
-    #                     self.new_x = x
-    
-    #     return self.new_x.clone().detach(), max_acq.clone().detach()
     
     def _batch_optimize_acq(self, xpts, iters=10, optimize_x=False, optimize_xi=False):
         """
@@ -201,17 +102,10 @@ class Borc():
         else:
             bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
 
-        # # for barrier method, important that we start with feasible points only
-        # if barrier_method:  
-        #     feasible_mask = torch.prod(self.eval_acqg(xpts), dim=1)  > 0 
-        #     if not any(feasible_mask):
-        #         raise ValueError("Barrier method could not find a feasible starting location")
-        #     xpts = xpts[feasible_mask]
-
         xpts = xpts.to(self.device)
         bounds = bounds.to(self.device)
         self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
-        xpts, acq = borc2.optimize.ADAM(self.eval_acquisition, xpts, iters, bounds, batch_mode=True) 
+        xpts, acq = borc2.optimize.ADAM(self.eval_acquisition, xpts, iters, bounds) 
 
         # choose best from multiple starts 
         with torch.no_grad():
@@ -221,40 +115,64 @@ class Borc():
             
         return self.new_x.clone().detach(), max_acq.clone().detach()
     
-    def batch_optimize_acq(self, iters=10, nstarts=5, optimize_x=False, optimize_xi=False, optimizer='ADAM'):
+    def batch_optimize_acq(self, iters=10, nstarts=5, optimize_x=False, optimize_xi=False):
         """ 
         Optimize the acquisition function. 
 
         """ 
-        # if batch_mode:
         if optimize_x:
             xpts = self.problem.sample_x(nsamples=nstarts, method=self.sample_method)
         elif optimize_xi:               
             xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method)
-        # elif optimize_xf: # optimise joint [x, xf]
-        #     nfantasies = len(self.acquisition.base_samples)
-        #     x = self.problem.sample(nsamples=nstarts)
-        #     xf = self.problem.sample(nsamples=nfantasies)
-        #     xpts = torch.cat((x, xf), dim=0)
         else:
             xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method)
-        new_x, max_acq = self._batch_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) # NOTE binary_constrained_opt optimization not implemented
+        new_x, max_acq = self._batch_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
-        # else:
-        #     if optimize_x:
-        #         xpts = self.problem.sample_x(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
-        #     elif optimize_xi:               
-        #         xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
-        #     # elif optimize_xf: # optimise joint [x, xf]
-        #     #     nfantasies = len(self.acquisition.base_samples)
-        #     #     x = self.problem.sample(nsamples=nstarts, method=self.sample_method) 
-        #     #     xf = self.problem.sample(nsamples=nfantasies, method=self.sample_method) 
-        #     #     xpts = torch.cat((x.unsqueeze(1), xf.unsqueeze(0).expand(x.shape[0], -1, -1)), dim=1)
-        #     else:
-        #         xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
-        #     new_x, max_acq = self._optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi, optimizer=optimizer, binary_constrained_opt=binary_constrained_opt) 
-        #     # if optimize_xf: 
-        #     #     new_x, _ = torch.split(new_x, [new_x.size(-2) - nfantasies, nfantasies], dim=-2)
+        return new_x, max_acq
+    
+    def _constrained_optimize_acq(self, xpts, optimize_x=False, optimize_xi=False):
+        """
+        Optimize the acquisition function using the start points xpts 
+
+        """ 
+        # set up bounds etc.
+        if optimize_xi or self.problem.param_bounds == None:
+            bounds = self.problem.param_dist.bounds()
+        elif optimize_x or self.problem.param_dist == None: 
+            bounds = self.bounds    
+        else:
+            bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
+
+        self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
+        self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
+
+        f = self.eval_acqf
+        g = self.eval_acqg
+
+        # optimize 
+        for x in xpts: 
+            x, acq = borc2.optimize.CMA_ES(f, g, x, bounds, sigma=0.3)      
+
+            # choose best from multiple starts
+            with torch.no_grad(): 
+                if acq > max_acq:   
+                    max_acq = acq
+                    self.new_x = x
+    
+        return self.new_x.clone().detach(), max_acq.clone().detach()
+    
+    def constrained_optimize_acq(self, nstarts=5, optimize_x=False, optimize_xi=False):
+        """ 
+        Optimize the acquisition function. 
+
+        """ 
+        if optimize_x:
+            xpts = self.problem.sample_x(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+        elif optimize_xi:               
+            xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+        else:
+            xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+        new_x, max_acq = self._constrained_optimize_acq(xpts=xpts, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
         return new_x, max_acq
 

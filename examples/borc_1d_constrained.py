@@ -1,11 +1,10 @@
 import torch 
 from matplotlib import pyplot as plt
-from torch.distributions import Normal 
 
-from borc.problem import Problem 
-from borc.surrogate.surrogate import GPSurrogate
-from borc.acquisition import Acquisition
-from borc.BORC import BORC
+from borc2.problem import Problem 
+from borc2.surrogate import Surrogate
+from borc2.acquisition import Acquisition
+from borc2.bayesopt import Borc
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -79,18 +78,18 @@ if __name__ == "__main__":
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    surrogate = GPSurrogate()  
-    acquisition = Acquisition(f="EI", g="PF")
-    borc = BORC(problem, surrogate, acquisition) 
-    borc.initialize(nsamples=3) 
+    surrogate = Surrogate() 
+    acquisition = Acquisition(f="EI", g="PF") 
+    borc = Borc(problem, surrogate, acquisition) 
+    borc.initialize(nsamples=7) 
 
-    iters = 2 
-    for i in range(iters): 
-        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
-        new_x, max_acq = borc.optimize_acq(iters=200, nstarts=10, optimizer='ADAM')
-        plot1d(problem, borc) 
-        borc.step(new_x=new_x) 
+    # iters = 2 
+    # for i in range(iters): 
+    #     print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
+    #     new_x, max_acq = borc.batch_optimize_acq(iters=200, nstarts=10)
+    #     plot1d(problem, borc) 
+    #     borc.step(new_x=new_x) 
     
     borc.acquisition = Acquisition(f="MU", g="BF")
-    new_x, max_acq = borc.optimize_acq(iters=200, nstarts=10, optimizer='ADAM', binary_constrained_opt=True) # TODO implement CMA-ES? 
+    new_x, max_acq = borc.constrained_optimize_acq(nstarts=10)  
     plot1d(problem, borc)

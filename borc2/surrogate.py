@@ -1,4 +1,8 @@
 import torch
+import warnings
+from gpytorch.utils.warnings import GPInputWarning
+warnings.filterwarnings("ignore", category=GPInputWarning)
+
 from borc2.gp import NoiselessGP, HomoscedasticGP
 from borc2.utilities import to_device 
 
@@ -110,7 +114,7 @@ class Surrogate():
             # look for a feasible point to initialize archive 
             for i in range(10):
                 self.run_model_initial(nsamples=nsamples, method=sample_method)
-                self.check_constraints()
+                self.get_best()
                 if self.best != None:
                     break 
                 elif i == 10:
@@ -129,6 +133,15 @@ class Surrogate():
             self.constraint_gps[i] = self.build_con_gp(self.x, y, normalize_x=normalize_x, standardize_y=standardize_y)
 
         return self.best, self.xbest 
+    
+    def get_best(self):
+        """
+        Get best x, f point  
+
+        """
+        _, max_ind = torch.max(self.f, dim=0)
+        self.best = self.f[max_ind] 
+        self.xbest = self.x[max_ind]
 
     def run_model_update(self, new_x):
         """
@@ -173,7 +186,6 @@ class Surrogate():
             self.g = torch.cat((self.g, g), dim=0)
 
         with torch.no_grad(): 
-            self.check_constraints() 
             return self.best, self.xbest 
     
     def predict_objectives(self, x, return_std=True, return_var=False, return_cov=False, grad=False):

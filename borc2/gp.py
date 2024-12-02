@@ -3,6 +3,7 @@ import gpytorch
 import warnings
 from gpytorch.utils.warnings import GPInputWarning
 warnings.filterwarnings("ignore", category=GPInputWarning)
+warnings.filterwarnings("ignore", message=r".*Negative variance values detected.*")  
 
 from borc2.utilities import NormalScaler, GaussianScaler 
 

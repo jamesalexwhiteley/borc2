@@ -1,10 +1,10 @@
 import torch 
 from matplotlib import pyplot as plt
 
-from borc.problem import Problem 
-from borc.surrogate.surrogate import GPSurrogate
-from borc.acquisition import Acquisition
-from borc.BORC import BORC
+from borc2.problem import Problem 
+from borc2.surrogate import Surrogate
+from borc2.acquisition import Acquisition
+from borc2.bayesopt import Borc
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -78,14 +78,14 @@ if __name__ == "__main__":
     problem.add_model(model)
     problem.add_objectives([model.f])
 
-    surrogate = GPSurrogate()
+    surrogate = Surrogate()
     acquisition = Acquisition(f="EI")
-    borc = BORC(problem, surrogate, acquisition)
+    borc = Borc(problem, surrogate, acquisition)
     borc.initialize(nsamples=30)
 
     iters = 2
     for i in range(iters): 
         print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
-        new_x, max_acq = borc.optimize_acq(iters=20, nstarts=10) 
+        new_x, max_acq = borc.batch_optimize_acq(iters=20, nstarts=10) 
         plot2d(problem, borc)
         borc.step()
