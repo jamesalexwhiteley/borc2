@@ -51,7 +51,7 @@ def plot1d(problem, borc):
     fig.add_subplot(4, 1, 4)
     a = borc.eval_acquisition(x.unsqueeze(1)).detach()
     plt.plot(x, a, label='EI*PF Acquisition function', color='k')
-    plt.scatter(new_x, max_acq, label='Max acquisition found', color='m', s=30, marker='D')
+    plt.axvline(x=new_x, color='m', linestyle='--')
     plt.xlabel('x')
     plt.legend(loc=0)
 
@@ -81,15 +81,15 @@ if __name__ == "__main__":
     surrogate = Surrogate() 
     acquisition = Acquisition(f="EI", g="PF") 
     borc = Borc(problem, surrogate, acquisition) 
-    borc.initialize(nsamples=7) 
+    borc.initialize(nsamples=4) 
 
-    # iters = 2 
-    # for i in range(iters): 
-    #     print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
-    #     new_x, max_acq = borc.batch_optimize_acq(iters=200, nstarts=10)
-    #     plot1d(problem, borc) 
-    #     borc.step(new_x=new_x) 
+    iters = 2
+    for i in range(iters): 
+        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
+        new_x, max_acq = borc.batch_optimize_acq(iters=100, nstarts=5)   
+        plot1d(problem, borc) 
+        borc.step(new_x=new_x) 
     
-    borc.acquisition = Acquisition(f="MU", g="BF")
-    new_x, max_acq = borc.constrained_optimize_acq(nstarts=10)  
-    plot1d(problem, borc)
+    borc.acquisition = Acquisition(f="MU", g="PF") 
+    new_x, max_acq = borc.constrained_optimize_acq(iters=100, nstarts=1) 
+    plot1d(problem, borc) 

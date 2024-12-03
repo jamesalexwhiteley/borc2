@@ -28,14 +28,12 @@ class Acquisition():
             'E' : self.entropy,
             'EF' : self.expected_feasibility,
             'PF': self.probability_of_feasibility,
-            'BF' : self.binary_feasibility,
             'None' : self.identity, 
             # acquisition functions with environmental variables, i.e., E[f(x,xi)]
             'eMU' : self.posterior_mean_monte_carlo,
             'eUCB' : self.upper_confidence_bound_monte_carlo, 
             'eEI' : self.expected_improvement_monte_carlo,
             'ePF' : self.probability_of_feasibility_monte_carlo,
-            'eBF' : self.binary_feasibility_monte_carlo, 
             'eMSE' : self.mean_squared_error,
             'eWMSE' : self.weighted_mean_squared_error, 
         } 
@@ -141,18 +139,7 @@ class Acquisition():
         """
         mu, std = self.gp_predict(x, gp)
         z = (0.0 - mu) / torch.clamp(std, min=self.min) 
-        return self.normal.cdf(z)
-    
-    def binary_feasibility(self, x, gp, fbest):
-        """
-        1 if P[g(x)<0] < 1 - eps, otherwise 0 
-        ~= sigmoid(-k * a), where a = g(x) - 1 + eps
-         
-        """
-        mu, std = self.gp_predict(x, gp)
-        z = (0.0 - mu) / torch.clamp(std, min=self.min) 
-        a = self.normal.cdf(z) - 1 + self.eps
-        return torch.sigmoid(a * 1e6) 
+        return self.normal.cdf(z) - 1 + self.eps
     
     def identity(self, x, gp, fbest):
         """
@@ -207,15 +194,6 @@ class Acquisition():
         mu, std = pred.posterior()
         p = torch.distributions.Normal(mu, std).cdf(torch.tensor([0.0]).to(mu.device)) 
         return p.mean(dim=1) 
-    
-    def binary_feasibility_monte_carlo(self, x, gp, fbest):
-        """
-        1 if P[g(x,xi)<0] < 1 - eps, otherwise 0
-        ~= sigmoid(k * a), where a = P[g(x,xi)<0] - 1 + eps
-
-        """
-        pi = self.probability_of_feasibility_monte_carlo(x, gp, fbest)
-        return torch.sigmoid(1e6 * (pi - 1 + self.eps))
     
     def mean_squared_error(self, xi, gp, fbest):
         """

@@ -53,7 +53,7 @@ class Borc():
         self.surrogate.build(nsamples=nsamples, sample_method=sample_method) 
         self.xbest, self.fbest = xbest, fbest
         self.xbest, self.fbest = self.xbest.to(self.device), self.fbest.to(self.device)
-        self.max_acq = fbest # NOTE wip  
+        self.max_acq = fbest # NOTE tbc   
 
     def eval_acqf(self, x):
         acq = [self.acquisition.f(x, gp, self.fbest).ravel() for gp in self.surrogate.objective_gps] 
@@ -130,7 +130,7 @@ class Borc():
 
         return new_x, max_acq
     
-    def _constrained_optimize_acq(self, xpts, optimize_x=False, optimize_xi=False):
+    def _constrained_optimize_acq(self, xpts, iters, optimize_x=False, optimize_xi=False):
         """
         Optimize the acquisition function using the start points xpts 
 
@@ -151,7 +151,7 @@ class Borc():
 
         # optimize 
         for x in xpts: 
-            x, acq = borc2.optimize.CMA_ES(f, g, x, bounds, sigma=0.3)      
+            x, acq = borc2.optimize.CMA_ES(f, g, x.flatten(), iters, bounds)   
 
             # choose best from multiple starts
             with torch.no_grad(): 
@@ -161,7 +161,7 @@ class Borc():
     
         return self.new_x.clone().detach(), max_acq.clone().detach()
     
-    def constrained_optimize_acq(self, nstarts=5, optimize_x=False, optimize_xi=False):
+    def constrained_optimize_acq(self, iters=100, nstarts=5, optimize_x=False, optimize_xi=False):
         """ 
         Optimize the acquisition function. 
 
@@ -172,7 +172,7 @@ class Borc():
             xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
         else:
             xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
-        new_x, max_acq = self._constrained_optimize_acq(xpts=xpts, optimize_x=optimize_x, optimize_xi=optimize_xi) 
+        new_x, max_acq = self._constrained_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
         return new_x, max_acq
 
