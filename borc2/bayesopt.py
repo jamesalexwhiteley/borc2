@@ -93,6 +93,7 @@ class Borc():
         Optimize the acquisition function in batch mode over the points xpts 
 
         """ 
+        # set up bounds etc.
         self.new_x, max_acq = xpts[0], self.max_acq
 
         if optimize_xi or self.problem.param_bounds == None:
@@ -102,9 +103,11 @@ class Borc():
         else:
             bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
 
+        # device 
         xpts = xpts.to(self.device)
         bounds = bounds.to(self.device)
         self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
+
         xpts, acq = borc2.optimize.ADAM(self.eval_acquisition, xpts, iters, bounds) 
 
         # choose best from multiple starts 
@@ -135,7 +138,9 @@ class Borc():
         Optimize the acquisition function using the start points xpts 
 
         """ 
-        # set up bounds etc.
+        # # set up bounds etc.
+        # self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
+        
         if optimize_xi or self.problem.param_bounds == None:
             bounds = self.problem.param_dist.bounds()
         elif optimize_x or self.problem.param_dist == None: 
@@ -143,8 +148,10 @@ class Borc():
         else:
             bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
 
-        self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
-        self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
+        # device 
+        xpts = xpts.to(self.device)
+        bounds = bounds.to(self.device)
+        # self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
 
         f = self.eval_acqf
         g = self.eval_acqg
@@ -153,13 +160,15 @@ class Borc():
         for x in xpts: 
             x, acq = borc2.optimize.CMA_ES(f, g, x.flatten(), iters, bounds)   
 
-            # choose best from multiple starts
-            with torch.no_grad(): 
-                if acq > max_acq:   
-                    max_acq = acq
-                    self.new_x = x
+            # # choose best from multiple starts
+            # with torch.no_grad(): 
+            #     if acq > max_acq:   
+            #         max_acq = acq
+            #         self.new_x = x
     
-        return self.new_x.clone().detach(), max_acq.clone().detach()
+        # return self.new_x.clone().detach(), max_acq.clone().detach()
+        self.new_x = x
+        return x, acq 
     
     def constrained_optimize_acq(self, iters=100, nstarts=5, optimize_x=False, optimize_xi=False):
         """ 

@@ -4,6 +4,8 @@ import nevergrad as ng
 import warnings
 warnings.filterwarnings("ignore", message=r".*Initial solution argument*")  
 warnings.filterwarnings("ignore", message=r".*sigma change np.exp*") 
+warnings.filterwarnings("ignore", message=r".*orphanated injected solution*") 
+warnings.filterwarnings("ignore", message=r".*Bounds are 1.0 sigma away from each other*") 
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -52,69 +54,33 @@ def torch_optim(f, x, iters, bounds, optimiser='ADAM', lr=0.1):
     return x, f(x)
 
 # ============================================= 
-# pycma 
-# ============================================= 
-# def CMA_ES(f, g, x, bounds, sigma=0.3):
-#     """
-#     Constrained optimisation using CMA-ES from pycma 
-
-#     """
-#     def callback(es):
-#         print(f"Iteration {es.countiter}: f(x) = {-es.best.f}")  # `-` to undo negation
-
-#     fun = lambda x: -x[0]**2
-#     # fun = lambda z : -f(torch.tensor(z)).detach().flatten().item()
-#     x0 = [1]
-#     sigma0 = 0.01
-#     bounds = [[-3], [ 3]]
-#     x, es = cma.fmin2(fun, x0, sigma0, {'bounds': bounds})
-#     print("Optimized solution:", x)
-#     print()
-
-#     # x0 = x.numpy() 
-#     # b0, b1 = bounds[:, 0].flatten().tolist(), bounds[:, 1].flatten().tolist()
-    
-#     # f_numpy = lambda z : -f(torch.tensor(z[0], requires_grad=False)).detach().item()  
-
-#     # # x, es = cma.fmin2(f_numpy, x0, sigma)
-#     # x, es = cma.fmin2(f_numpy, x0, sigma, {'bounds': [b0, b1]})
-
-#     # cfun = cma.ConstrainedFitnessAL(f, g) # augmented lagrangian # TODO first try unconstrained opt? 
-
-#     # x, es = cma.fmin2(
-#     #     cfun,
-#     #     x,              # initial solution
-#     #     sigma,          # initial standard deviation to sample new solutions
-#     #     {
-#     #         'tolstagnation': 0,
-#     #         'maxfevals': 1e4, 
-#     #         'CMA_active': True, 
-#     #         # 'bounds': bounds  # TODO 
-#     #     },
-#     #     callback=cfun.update
-#     # )
-
-#     # x = cfun.find_feasible(es) # strict feasibility 
-
-#     x = torch.tensor(x)
-
-#     return x, f(x)
-
-# ============================================= 
 # nevergrad  
 # ============================================= 
-def CMA_ES(f, g, x, iters, bounds, sigma=0.3):
+def CMA_ES(f, g, x, iters, bounds):
     """
     Constrained optimisation using CMA-ES from Nevergrad  
 
     """
-    b0, b1 = bounds[:, 0].flatten().numpy(), bounds[:, 1].flatten().numpy()
+    device = x.device 
+    b0, b1 = bounds[:, 0].cpu().flatten().numpy(), bounds[:, 1].cpu().flatten().numpy()
 
+    # def f2(x):
+    #     # return -f(torch.tensor(x)).detach().flatten().item()
+    #     return -f(torch.tensor(x).to(device).unsqueeze(0)).detach().flatten().item()
+
+    # def g2(x):
+    #     # return all(g(torch.tensor(x)).detach() >= 0)
+    #     return all(g(torch.tensor(x).to(device).unsqueeze(0)).detach() >= 0)
+
+    # objective function
     def f2(x):
-        return -f(torch.tensor(x)).detach().flatten().item()
+        x_tensor = torch.tensor(x, device=device).unsqueeze(0)
+        return -f(x_tensor).detach().flatten().item()
 
+    # constraint function
     def g2(x):
-        return all(g(torch.tensor(x)).detach() >= 0)
+        x_tensor = torch.tensor(x, device=device).unsqueeze(0)
+        return all(g(x_tensor).detach() >= 0)
 
     # objective 
     parametrization = ng.p.Array(shape=x.shape).set_bounds(lower=b0, upper=b1) 
@@ -125,8 +91,8 @@ def CMA_ES(f, g, x, iters, bounds, sigma=0.3):
     # optimize 
     optimizer = ng.optimizers.CMA(parametrization, budget=iters) 
     res = optimizer.minimize(f2)  
-    
-    x = torch.tensor(res.value)
+
+    x = torch.tensor(res.value).unsqueeze(0).to(device)
 
     return x, f(x)
 

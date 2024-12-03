@@ -193,7 +193,7 @@ class Acquisition():
         pred = gp.predict(batch_x, return_std=True, grad=True) # NOTE multiple constraints not tested         
         mu, std = pred.posterior()
         p = torch.distributions.Normal(mu, std).cdf(torch.tensor([0.0]).to(mu.device)) 
-        return p.mean(dim=1) 
+        return p.mean(dim=1) - 1 + self.eps
     
     def mean_squared_error(self, xi, gp, fbest):
         """

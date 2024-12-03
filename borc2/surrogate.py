@@ -2,6 +2,7 @@ import torch
 import warnings
 from gpytorch.utils.warnings import GPInputWarning
 warnings.filterwarnings("ignore", category=GPInputWarning)
+warnings.filterwarnings("ignore", message=r".*added jitter of*")
 
 from borc2.gp import NoiselessGP, HomoscedasticGP
 from borc2.utilities import to_device 
