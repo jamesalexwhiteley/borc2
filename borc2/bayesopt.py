@@ -133,14 +133,52 @@ class Borc():
 
         return new_x, max_acq
     
+    # def _constrained_optimize_acq(self, xpts, iters, optimize_x=False, optimize_xi=False):
+    #     """
+    #     Optimize the acquisition function using the start points xpts 
+
+    #     """ 
+    #     # # set up bounds etc.
+    #     # self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
+        
+    #     if optimize_xi or self.problem.param_bounds == None:
+    #         bounds = self.problem.param_dist.bounds()
+    #     elif optimize_x or self.problem.param_dist == None: 
+    #         bounds = self.bounds    
+    #     else:
+    #         bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
+
+    #     # device 
+    #     xpts = xpts.to(self.device)
+    #     bounds = bounds.to(self.device)
+    #     # self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
+
+    #     f = self.eval_acqf
+    #     g = self.eval_acqg
+
+    #     # optimize 
+    #     for x in xpts: 
+    #         print(f"x {x}")
+    #         x, acq = borc2.optimize.CMA_ES(f, g, x.flatten(), iters, bounds)   
+
+    #         # # choose best from multiple starts
+    #         # with torch.no_grad(): 
+    #         #     if acq > max_acq:   
+    #         #         max_acq = acq
+    #         #         self.new_x = x
+    
+    #     # return self.new_x.clone().detach(), max_acq.clone().detach()
+    #     self.new_x = x
+    #     return x, acq 
+
     def _constrained_optimize_acq(self, xpts, iters, optimize_x=False, optimize_xi=False):
         """
         Optimize the acquisition function using the start points xpts 
 
         """ 
-        # # set up bounds etc.
-        # self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
-        
+        new_x, max_acq = None, None
+
+        # bounds         
         if optimize_xi or self.problem.param_bounds == None:
             bounds = self.problem.param_dist.bounds()
         elif optimize_x or self.problem.param_dist == None: 
@@ -151,26 +189,24 @@ class Borc():
         # device 
         xpts = xpts.to(self.device)
         bounds = bounds.to(self.device)
-        # self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
-
-        f = self.eval_acqf
-        g = self.eval_acqg
 
         # optimize 
-        for x in xpts: 
-            x, acq = borc2.optimize.CMA_ES(f, g, x.flatten(), iters, bounds)   
+        f = self.eval_acqf 
+        g = self.eval_acqg 
+        for x0 in xpts: 
+            x, acq = borc2.optimize.CMA_ES(f, g, x0.flatten(), iters, bounds)  
+            # print(f"x {x} | {acq}") 
 
-            # # choose best from multiple starts
-            # with torch.no_grad(): 
-            #     if acq > max_acq:   
-            #         max_acq = acq
-            #         self.new_x = x
+            # choose best from multiple starts
+            if max_acq == None: 
+                new_x, max_acq = x, acq
+
+            elif acq > max_acq:   
+                new_x, max_acq = x, acq
     
-        # return self.new_x.clone().detach(), max_acq.clone().detach()
-        self.new_x = x
-        return x, acq 
+        return new_x, max_acq 
     
-    def constrained_optimize_acq(self, iters=100, nstarts=5, optimize_x=False, optimize_xi=False):
+    def constrained_optimize_acq(self, iters=50, nstarts=1, optimize_x=False, optimize_xi=False):
         """ 
         Optimize the acquisition function. 
 
@@ -181,6 +217,7 @@ class Borc():
             xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
         else:
             xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+            
         new_x, max_acq = self._constrained_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
         return new_x, max_acq

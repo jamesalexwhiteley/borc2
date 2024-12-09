@@ -189,7 +189,7 @@ class MultivariateNormal(torch.distributions.MultivariateNormal):
         standard_normal = torch.distributions.Normal(0.0, 1.0) 
         standard_normal_samples = standard_normal.icdf(samples) 
 
-        # transform standard normal to multivariate normal  
+        # transform standard normal to multivariate normal 
         L = torch.linalg.cholesky(self.cov)
         standard_normal_samples = standard_normal_samples.to(L.dtype)
         xi = self.mu + standard_normal_samples @ L.T

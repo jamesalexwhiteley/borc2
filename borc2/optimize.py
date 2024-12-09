@@ -64,31 +64,19 @@ def CMA_ES(f, g, x, iters, bounds):
     device = x.device 
     b0, b1 = bounds[:, 0].cpu().flatten().numpy(), bounds[:, 1].cpu().flatten().numpy()
 
-    # def f2(x):
-    #     # return -f(torch.tensor(x)).detach().flatten().item()
-    #     return -f(torch.tensor(x).to(device).unsqueeze(0)).detach().flatten().item()
-
-    # def g2(x):
-    #     # return all(g(torch.tensor(x)).detach() >= 0)
-    #     return all(g(torch.tensor(x).to(device).unsqueeze(0)).detach() >= 0)
-
-    # objective function
+    # objective 
     def f2(x):
         x_tensor = torch.tensor(x, device=device).unsqueeze(0)
         return -f(x_tensor).detach().flatten().item()
 
-    # constraint function
+    # constraint 
     def g2(x):
         x_tensor = torch.tensor(x, device=device).unsqueeze(0)
         return all(g(x_tensor).detach() >= 0)
 
-    # objective 
+    # optimize  
     parametrization = ng.p.Array(shape=x.shape).set_bounds(lower=b0, upper=b1) 
-
-    # constraint 
-    parametrization.register_cheap_constraint(g2)
-
-    # optimize 
+    parametrization.register_cheap_constraint(g2) # rejection sampling 
     optimizer = ng.optimizers.CMA(parametrization, budget=iters) 
     res = optimizer.minimize(f2)  
 

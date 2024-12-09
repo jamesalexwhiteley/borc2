@@ -86,10 +86,10 @@ if __name__ == "__main__":
     iters = 2
     for i in range(iters): 
         print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
-        new_x, max_acq = borc.batch_optimize_acq(iters=100, nstarts=5)   
+        new_x, max_acq = borc.batch_optimize_acq(iters=100)   
         plot1d(problem, borc) 
         borc.step(new_x=new_x) 
     
     borc.acquisition = Acquisition(f="MU", g="PF") 
-    new_x, max_acq = borc.constrained_optimize_acq(iters=100, nstarts=1) 
+    new_x, max_acq = borc.constrained_optimize_acq(iters=100) 
     plot1d(problem, borc) 
