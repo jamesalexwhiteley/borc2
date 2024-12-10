@@ -9,7 +9,6 @@ from borc2.surrogate import Surrogate
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import DiscreteJoint
-from borc2.utilities import tic, toc 
 
 plt.rcParams['font.size'] = 12
 plt.rcParams['font.family'] = 'sans-serif'
@@ -128,7 +127,7 @@ def bayesopt(ninitial, iters, n):
         if i % n == 0: 
             xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
             res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     return xopt, res 
 

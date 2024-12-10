@@ -1,19 +1,20 @@
+# type: ignore
 import torch
 import matplotlib.pyplot as plt
 import os
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
 from borc2.utilities import tic, toc 
 
 import warnings
 warnings.filterwarnings("ignore", message=r".*You are using*")  
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['Arial']
 
-# from branin_rs import bayesopt as bayesopt_rs
-# from branin_ei import bayesopt as bayesopt_ei
-# from branin_rei import bayesopt as bayesopt_rei
+from branin_rs import bayesopt as bayesopt_rs
+from branin_ei import bayesopt as bayesopt_ei 
+from branin_er import bayesopt as bayesopt_er 
 # from prestress_rs import bayesopt as bayesopt_rs
-# from prestress_rei import bayesopt as bayesopt_rei
 # from prestress_ei import bayesopt as bayesopt_ei
+# from prestress_er import bayesopt as bayesopt_er
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -74,28 +75,27 @@ if __name__ == "__main__":
     # ======================================== #  
     # branin   
     # ======================================== #  
-    # functions = [bayesopt_rs, bayesopt_rei, bayesopt_ei] 
+    functions = [bayesopt_rs, bayesopt_er, bayesopt_ei] 
     names = ['RS', 'EIxPF-WSE', 'EIxPF']
     name = 'branin'
     y_optimal = 8330
-    # BATCHS = len(functions) 
-    RUNS = 50 # runs (of each algorithm)
+    BATCHS = len(functions) 
+    RUNS = 10 # runs (of each algorithm)
     ITERS = 50 # iterations (on each run)
     NINITIAL = 10 # initial points (on each run)
-    N = 2 # test every nth iters
-    # DATA = torch.ones(BATCHS, RUNS, ITERS)
+    N = 10 # test every nth iters
+    DATA = torch.ones(BATCHS, RUNS, ITERS)
 
     # filepath 
     if not os.path.exists('data'): 
         os.makedirs('data') 
     file_path = os.path.join('data', 'branin.pt') 
 
-    # # run scripts 
+    # # scripts 
     # for j, fun in enumerate(functions): 
     #     tic() 
     #     scriptloader(j, fun, DATA)  
-    #     torch.save(DATA, file_path_0) 
-    #     torch.save(MAE,  file_path_1) 
+    #     torch.save(DATA, file_path) 
     #     toc() 
 
     # load data  
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     #     os.makedirs('data') 
     # file_path = os.path.join('data', 'prestress.pt') 
 
-    # # # run scripts 
+    # # # scripts 
     # # for j, fun in enumerate(functions): 
     # #     tic() 
     # #     scriptloader(j, fun, DATA) 

@@ -70,7 +70,7 @@ def bayesopt(ninitial, iters, n):
             borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
             xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
             res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     return xopt, res 
 
