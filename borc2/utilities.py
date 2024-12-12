@@ -90,7 +90,7 @@ def toc():
         print("Timer has not been started. Please call tic() first.")
         return
     elapsed_time = time.time() - _tic_start_time
-    print(f"Elapsed time: {elapsed_time:.6f} seconds")
+    print(f"Elapsed time: {elapsed_time / 60:.4f} minutes")
 
 def extract_blocks(matrix, h, w):
     """

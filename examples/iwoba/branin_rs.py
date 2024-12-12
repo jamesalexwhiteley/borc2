@@ -22,7 +22,7 @@ def plotcontour(problem):
     output_dir = 'figures'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    output_path = os.path.join(output_dir, f'branin.png')
+    output_path = os.path.join(output_dir, f'contour_branin.png')
 
     fig = plt.figure(figsize=(7, 6))
 
@@ -36,20 +36,19 @@ def plotcontour(problem):
     MU = mu.view(X.shape).detach()
     PI = prob[0].view(X.shape).detach()
 
-    xopt = torch.tensor([0, 0.75])
+    # xopt = torch.tensor([0, 0.75])
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
-    contour = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    plt.contour(X.numpy(), Y.numpy(), PI.numpy(), levels=[0.95], colors='black')
-    plt.colorbar(contour, shrink=0.8, pad=0.05)
-    scatter0 = plt.scatter(xopt[0], xopt[1]+0.01, label='Optimal x', color='m', s=60, marker='o', zorder=10)
-    scatter1 = plt.scatter(xopt[0]+0.1, xopt[1]+0.05, label='Infeasible space', color='k', s=50, marker='x', zorder=3)
-    scatter2 = plt.scatter(xopt[0]+0.1, xopt[1]-0.05, label='Feasible space', color='k', s=50, marker='o', zorder=3)
+    contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.1, 0.9, 5))
+    plt.clabel(contour_pi, inline=True, fontsize=8)
+    plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
+    # scatter = plt.scatter(xopt[0], xopt[1]+0.0125, label='Optimal x', color='m', s=60, marker='o', zorder=10)
 
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
-    plt.legend([scatter0, scatter1, scatter2, proxy], ['Optimal x', 'Infeasible space', 'Feasible space', r'$\text{P}[\text{g}(x,\xi)\leq 0]$ = 0.9'], loc='best')
-    # plt.legend()
-    # plt.savefig(output_path, dpi=600)
+    # plt.legend([scatter, proxy], ['Optimal x', r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
+    plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
+    plt.savefig(output_path, dpi=600)
     plt.show()
 
 def branin_williams(x):
@@ -104,32 +103,33 @@ def bayesopt(ninitial, iters, n):
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
  
-    xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    surrogate = Surrogate()
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-    borc = Borc(problem, surrogate, acquisition) 
-    borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
+    # xi = problem.sample_xi(nsamples=int(1e2)).to(device)
+    # surrogate = Surrogate()
+    # acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
+    # borc = Borc(problem, surrogate, acquisition) 
+    # borc.cuda(device) 
+    # borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
 
     # params=(torch.linspace(0.0, 1.0, steps=21), torch.linspace(0.0, 1.0, steps=21)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(5e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0, 0.7] 
     # _, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    # plotcontour(problem)
+    plotcontour(problem)
 
-    # BayesOpt used to sequentially sample [x,xi] points 
-    res = torch.ones(iters, ) 
-    for i in range(iters): 
+    # # BayesOpt used to sequentially sample [x,xi] points 
+    # res = torch.ones(iters, ) 
+    # for i in range(iters): 
 
-        # new_[x,xi] <- random search 
-        borc.step(new_x=problem.sample()) 
+    #     # new_[x,xi] <- random search 
+    #     borc.step(new_x=problem.sample()) 
 
-        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons
-        if i % n == 0: 
-            xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
-            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons
+    #     if i % n == 0: 
+    #         xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
+    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+    #         # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    return xopt, res 
+    # return xopt, res 
+    return None, None 
 
 
 if __name__ == "__main__": 

@@ -10,6 +10,7 @@ from borc2.surrogate import Surrogate
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import MultivariateNormal
+from borc2.utilities import tic, toc 
 
 from staticFEM.models import Frame 
 from pystressed.models import SectionForce 
@@ -25,43 +26,53 @@ device = 'cpu' # NOTE
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
-def plotcontour(problem):
+def plotcontour(problem, borc):
 
     output_dir = 'figures'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    output_path = os.path.join(output_dir, f'branin.png')
+    output_path = os.path.join(output_dir, f'contour_prestress.png')
 
     fig = plt.figure(figsize=(7, 6))
 
     # ground truth 
-    steps = 2
+    # tic() 
+    # steps = 100
+    # x = torch.linspace(0.1, 1, steps)
+    # y = torch.linspace(0.1, 1, steps)
+    # X, Y = torch.meshgrid(x, y, indexing='ij')
+    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
+    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True) for x in xpts]) # list comprehension
+    # MU = -torch.tensor(mu).view(X.shape).detach()
+    # PI = torch.tensor(prob).view(X.shape).detach()
+    # toc() 
+
+    tic() 
+    steps = 50
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
     xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    for xn in xpts: 
-        print(xn.unsqueeze(0)) 
-        mu, prob = problem.rbo(xn.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True)
-    # mu, prob = problem.rbo(xpts, nsamples=int(5e2), output=False, return_vals=True)
-    # MU = mu.view(X.shape).detach()
+    # mu, prob = borc.rbo(xpts, nsamples=int(1e3), output=False, return_vals=True)
+    # MU = -mu.view(X.shape).detach()
     # PI = prob[0].view(X.shape).detach()
+    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True) for x in xpts]) # list comprehension
+    MU = -torch.tensor(mu).view(X.shape).detach()
+    PI = torch.tensor(prob).view(X.shape).detach()
+    toc() 
 
-    # xopt = torch.tensor([0, 0.75])
-    # proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
-    # contour = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    # plt.contour(X.numpy(), Y.numpy(), PI.numpy(), levels=[0.95], colors='black')
-    # plt.colorbar(contour, shrink=0.8, pad=0.05)
-    # scatter0 = plt.scatter(xopt[0], xopt[1]+0.01, label='Optimal x', color='m', s=60, marker='o', zorder=10)
-    # # scatter1 = plt.scatter(xopt[0]+0.1, xopt[1]+0.05, label='Infeasible space', color='k', s=50, marker='x', zorder=3)
-    # # scatter2 = plt.scatter(xopt[0]+0.1, xopt[1]-0.05, label='Feasible space', color='k', s=50, marker='o', zorder=3)
+    proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
+    contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.1, 0.9, 3))
+    plt.clabel(contour_pi, inline=True, fontsize=8)
+    plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
 
-    # plt.xlabel(r'$x_1$')
-    # plt.ylabel(r'$x_2$')
-    # # plt.legend([scatter0, scatter1, scatter2, proxy], ['Optimal x', 'Infeasible space', 'Feasible space', r'$\text{P}[\text{g}(x,\xi)\leq 0]$ = 0.9'], loc='best')
-    # # plt.legend()
-    # # plt.savefig(output_path, dpi=600)
-    # plt.show()
+    plt.xlabel(r'$x_1$')
+    plt.ylabel(r'$x_2$')
+    plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="upper left")
+    plt.savefig(output_path, dpi=600)
+    plt.show()
+
 
 class Model():
     def __call__(self, x): 
@@ -193,30 +204,34 @@ def bayesopt(ninitial, iters, n):
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
 
-    # params=(torch.linspace(0.1, 1.0, steps=9), torch.linspace(0.1, 1.0, steps=9)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0.2, 0.4] £830 
+    params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+    xopt, _ = problem.monte_carlo(params=params, nsamples=int(2e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0.2, 0.4] £830 
     # v, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
     # print(1/v) 
-    plotcontour(problem) 
+    # plotcontour(problem, borc) 
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters) 
-    # for i in range(iters): 
+    # BayesOpt used to sequentially sample [x,xi] points 
+    res = torch.ones(iters) 
+    for i in range(iters): 
 
-    #     # new_x <- random search 
-    #     # borc.step(new_x=problem.sample()) 
+        params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+        xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(2e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0.2, 0.4] £830 
+        # v, _ = borc.rbo(xopt, nsamples=int(1e3), return_vals=True) 
 
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=4, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+        # # new_x <- random search 
+        # # borc.step(new_x=problem.sample()) 
 
-    # return xopt, res
+        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+        if i % n == 0: 
+            xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=4, optimize_x=True) 
+            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+
+    # return xopt, res 
     return None, None 
 
 
 if __name__ == "__main__":  
 
-    ninitial, iters, n = 10, 2, 1 
+    ninitial, iters, n = 10, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

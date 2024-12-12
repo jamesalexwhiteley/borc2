@@ -250,7 +250,7 @@ class Borc():
         Monte carlo estimate of RBO objective and constraint(s) 
 
         """
-        x_batch, xi_samples = self.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
+        x_batch, _ = self.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
         f = self.surrogate.predict_objectives(x_batch)[0].mu
         g = self.surrogate.predict_constraints(x_batch)[0] # NOTE multiple constraints not tested  
 
