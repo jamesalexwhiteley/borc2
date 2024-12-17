@@ -5,7 +5,7 @@ from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import DiscreteJoint
 from borc2.utilities import tic, toc 
-from branin_rs import branin_williams
+from branin_rs import branin_williams # type:ignore 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

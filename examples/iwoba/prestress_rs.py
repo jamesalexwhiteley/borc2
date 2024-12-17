@@ -16,8 +16,6 @@ from staticFEM.models import Frame
 from pystressed.models import SectionForce 
 from pystressed.servicability import plot_magnel, optimize_magnel, optimize_and_plot_magnel 
 
-import warnings
-warnings.filterwarnings("ignore")
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
@@ -46,7 +44,7 @@ def plotcontour(problem, borc):
     # toc() 
 
     tic() 
-    steps = 15
+    steps = 10
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -201,8 +199,8 @@ def bayesopt(ninitial, iters, n):
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    # borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
-    # SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
+    SurrogateIO.save(borc.surrogate, output_dir) 
     borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
@@ -234,8 +232,10 @@ def bayesopt(ninitial, iters, n):
 
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 5000, 1, 1 
+    ninitial, iters, n = 10000, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
 
+    # TODO see if we can do anything to speed up predition (e.g., if we don't need variance)
+    # TODO get branin and prestress scripts to run 
     # TODO use GP predictive uncertainiy? error due to invalide inputs to normal distribution loc? 
     # TODO why do problem.rbo and borc.rbo match, but .constrained_optimize_acq doesn't? 

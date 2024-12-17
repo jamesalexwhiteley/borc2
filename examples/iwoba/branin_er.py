@@ -1,15 +1,16 @@
 import torch 
+import os 
 from borc2.problem import Problem 
-from borc2.surrogate import Surrogate
+from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import DiscreteJoint
 from borc2.utilities import tic, toc 
-from branin_rs import branin_williams
+from branin_rs import branin_williams, plotcontour # type:ignore 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') 
 
-# Author: James Whiteley (github.com/jamesalexwhiteley)
+# Author: James Whiteley (github.com/jamesalexwhiteley) 
 
 class Model():
     def __call__(self, x): 
@@ -23,6 +24,10 @@ class Model():
         return torch.linalg.vector_norm(self.x, dim=1) - torch.tensor(3/2).sqrt()
     
 def bayesopt(ninitial, iters, n):
+
+    base_folder = os.path.join(os.getcwd(), "models")
+    os.makedirs(base_folder, exist_ok=True)
+    output_dir  = os.path.join(base_folder, "branin_er")
 
     problem = Problem()
     model = Model()
@@ -45,11 +50,11 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g])
 
     xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    surrogate = Surrogate()
+    surrogate = Surrogate(problem)
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-    borc = Borc(problem, surrogate, acquisition) 
+    borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
@@ -71,14 +76,20 @@ def bayesopt(ninitial, iters, n):
 
         # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilon 
         if i % n == 0: 
+            print(i)
             borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
             xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
             res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    return xopt, res
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
+    plotcontour(problem, borc)
+
+    # return xopt, res
+    return None, None
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 20, 4, 1
+    ninitial, iters, n = 50, 500, 100 
     xopt, res = bayesopt(ninitial, iters, n) 

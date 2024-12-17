@@ -5,7 +5,7 @@ import os
 import math 
 
 from borc2.problem import Problem 
-from borc2.surrogate import Surrogate
+from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import DiscreteJoint
@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
-def plotcontour(problem):
+def plotcontour(problem, borc):
 
     output_dir = 'figures'
     if not os.path.exists(output_dir):
@@ -26,23 +26,30 @@ def plotcontour(problem):
 
     fig = plt.figure(figsize=(7, 6))
 
-    # ground truth 
-    steps = 1000
-    x = torch.linspace(0, 1, steps)
-    y = torch.linspace(0, 1, steps)
-    X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    mu, prob = problem.rbo(xpts, nsamples=int(5e2), output=False, return_vals=True)
-    MU = mu.view(X.shape).detach()
-    PI = prob[0].view(X.shape).detach()
+    # # ground truth 
+    # steps = 1000
+    # x = torch.linspace(0, 1, steps)
+    # y = torch.linspace(0, 1, steps)
+    # X, Y = torch.meshgrid(x, y, indexing='ij')
+    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
+    # mu, prob = problem.rbo(xpts, nsamples=int(5e2), output=False, return_vals=True)
+    # MU = mu.view(X.shape).detach()
+    # PI = prob[0].view(X.shape).detach()
 
-    # xopt = torch.tensor([0, 0.75])
+    steps = 100
+    x = torch.linspace(0.1, 1, steps)
+    y = torch.linspace(0.1, 1, steps)
+    X, Y = torch.meshgrid(x, y, indexing='ij')
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension
+    MU = torch.tensor(mu).view(X.shape).detach()
+    PI = torch.tensor(prob).view(X.shape).detach()
+
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
     contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.1, 0.9, 5))
     plt.clabel(contour_pi, inline=True, fontsize=8)
     plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
-    # scatter = plt.scatter(xopt[0], xopt[1]+0.0125, label='Optimal x', color='m', s=60, marker='o', zorder=10)
 
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
@@ -83,6 +90,10 @@ class Model():
     
 def bayesopt(ninitial, iters, n):
 
+    base_folder = os.path.join(os.getcwd(), "models")
+    os.makedirs(base_folder, exist_ok=True)
+    output_dir  = os.path.join(base_folder, "branin_rs")
+
     problem = Problem()
     model = Model()
     bounds = {"x1": (0, 1), "x4": (0, 1)}
@@ -103,17 +114,19 @@ def bayesopt(ninitial, iters, n):
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
  
-    # xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    # surrogate = Surrogate()
-    # acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-    # borc = Borc(problem, surrogate, acquisition) 
-    # borc.cuda(device) 
-    # borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
+    xi = problem.sample_xi(nsamples=int(1e2)).to(device)
+    surrogate = Surrogate(problem)
+    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
+    borc = Borc(surrogate, acquisition) 
+    borc.cuda(device) 
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.0, 1.0, steps=21), torch.linspace(0.0, 1.0, steps=21)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(5e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0, 0.7] 
     # _, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    plotcontour(problem)
+    plotcontour(problem, borc)
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters, ) 
@@ -133,5 +146,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 400, 10, 1 
+    ninitial, iters, n = 800, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
