@@ -5,7 +5,7 @@ import borc2.optimize
 
 class Borc():
     def __init__(self, 
-                 problem, 
+                #  problem, 
                  surrogate, 
                  acquisition):
         '''
@@ -18,13 +18,15 @@ class Borc():
         acquisition : acquisition class instance  
 
         '''
-        self.problem = problem 
+        # self.problem = surrogate.problem 
+        # self.surrogate.add_problem(problem)
         self.acquisition = acquisition 
         self.surrogate = surrogate 
-        self.surrogate.add_problem(problem)
+        self.sample_method = surrogate.sample_method 
         self.device = self.surrogate.device 
-        self.bounds = torch.stack(list(self.problem.param_bounds.values()), dim=0)
+        self.bounds = torch.stack(list(self.surrogate.problem.param_bounds.values()), dim=0)
         self.nrepeats = torch.tensor([10]) 
+        self.max_acq = torch.tensor([0])
 
     def cuda(self, device):
         self.nrepeats.to(device)
@@ -32,7 +34,7 @@ class Borc():
         self.surrogate.cuda(device)
         self.device = device 
 
-    def initialize(self, nsamples='default', sample_method="lhs", xbest=torch.tensor([0.0]), fbest=torch.tensor([0.0])):
+    def initialize(self, nsamples='default', sample_method="lhs", max_acq=torch.tensor([0])):
         """
         Build surrogate GPs of problem objectives and constraints
 
@@ -43,7 +45,7 @@ class Borc():
         
         """
         if nsamples == 'default':
-            n = self.problem.sample_xi().shape[1] # no. stochastic parameters 
+            n = self.surrogate.problem.sample_xi().shape[1] # no. stochastic parameters 
             nsamples = int((n+1)*(n+2) / 2) # Bichon et al. "Efficient global reliability analysis for nonlinear implicit performance functions." 2008.
 
         self.sample_method = sample_method 
@@ -51,16 +53,16 @@ class Borc():
             self.sample_method = self.surrogate.sample_method 
 
         self.surrogate.build(nsamples=nsamples, sample_method=sample_method) 
-        self.xbest, self.fbest = xbest, fbest
-        self.xbest, self.fbest = self.xbest.to(self.device), self.fbest.to(self.device)
-        self.max_acq = fbest # NOTE tbc   
+        # self.xbest, self.fbest = xbest, fbest
+        # self.xbest, self.fbest = self.xbest.to(self.device), self.fbest.to(self.device)
+        self.max_acq = max_acq.to(self.device) 
 
     def eval_acqf(self, x):
-        acq = [self.acquisition.f(x, gp, self.fbest).ravel() for gp in self.surrogate.objective_gps] 
+        acq = [self.acquisition.f(x, gp, self.surrogate.fbest).ravel() for gp in self.surrogate.objective_gps] 
         return torch.stack(acq, dim=1)
     
     def eval_acqg(self, x):
-        acq = [self.acquisition.g(x, gp, self.fbest).ravel() for gp in self.surrogate.constraint_gps]
+        acq = [self.acquisition.g(x, gp, self.surrogate.fbest).ravel() for gp in self.surrogate.constraint_gps]
         return torch.stack(acq, dim=1) if acq != [] else []
 
     def eval_acquisition(self, x): 
@@ -96,12 +98,12 @@ class Borc():
         # set up bounds etc.
         self.new_x, max_acq = xpts[0], self.max_acq
 
-        if optimize_xi or self.problem.param_bounds == None:
-            bounds = self.problem.param_dist.bounds()
-        elif optimize_x or self.problem.param_dist == None:
+        if optimize_xi or self.surrogate.problem.param_bounds == None:
+            bounds = self.surrogate.problem.param_dist.bounds()
+        elif optimize_x or self.surrogate.problem.param_dist == None:
             bounds = self.bounds 
         else:
-            bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
+            bounds = torch.cat((self.bounds, self.surrogate.problem.param_dist.bounds()), dim=0) 
 
         # device 
         xpts = xpts.to(self.device)
@@ -124,52 +126,14 @@ class Borc():
 
         """ 
         if optimize_x:
-            xpts = self.problem.sample_x(nsamples=nstarts, method=self.sample_method)
+            xpts = self.surrogate.problem.sample_x(nsamples=nstarts, method=self.sample_method)
         elif optimize_xi:               
-            xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method)
+            xpts = self.surrogate.problem.sample_xi(nsamples=nstarts, method=self.sample_method)
         else:
-            xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method)
+            xpts = self.surrogate.problem.sample(nsamples=nstarts, method=self.sample_method)
         new_x, max_acq = self._batch_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
         return new_x, max_acq
-    
-    # def _constrained_optimize_acq(self, xpts, iters, optimize_x=False, optimize_xi=False):
-    #     """
-    #     Optimize the acquisition function using the start points xpts 
-
-    #     """ 
-    #     # # set up bounds etc.
-    #     # self.new_x, max_acq = xpts[0], self.eval_acquisition(xpts[0]) 
-        
-    #     if optimize_xi or self.problem.param_bounds == None:
-    #         bounds = self.problem.param_dist.bounds()
-    #     elif optimize_x or self.problem.param_dist == None: 
-    #         bounds = self.bounds    
-    #     else:
-    #         bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
-
-    #     # device 
-    #     xpts = xpts.to(self.device)
-    #     bounds = bounds.to(self.device)
-    #     # self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
-
-    #     f = self.eval_acqf
-    #     g = self.eval_acqg
-
-    #     # optimize 
-    #     for x in xpts: 
-    #         print(f"x {x}")
-    #         x, acq = borc2.optimize.CMA_ES(f, g, x.flatten(), iters, bounds)   
-
-    #         # # choose best from multiple starts
-    #         # with torch.no_grad(): 
-    #         #     if acq > max_acq:   
-    #         #         max_acq = acq
-    #         #         self.new_x = x
-    
-    #     # return self.new_x.clone().detach(), max_acq.clone().detach()
-    #     self.new_x = x
-    #     return x, acq 
 
     def _constrained_optimize_acq(self, xpts, iters, optimize_x=False, optimize_xi=False):
         """
@@ -179,12 +143,12 @@ class Borc():
         new_x, max_acq = None, None
 
         # bounds         
-        if optimize_xi or self.problem.param_bounds == None:
-            bounds = self.problem.param_dist.bounds()
-        elif optimize_x or self.problem.param_dist == None: 
+        if optimize_xi or self.surrogate.problem.param_bounds == None:
+            bounds = self.surrogate.problem.param_dist.bounds()
+        elif optimize_x or self.surrogate.problem.param_dist == None: 
             bounds = self.bounds    
         else:
-            bounds = torch.cat((self.bounds, self.problem.param_dist.bounds()), dim=0) 
+            bounds = torch.cat((self.bounds, self.surrogate.problem.param_dist.bounds()), dim=0) 
 
         # device 
         xpts = xpts.to(self.device)
@@ -212,11 +176,11 @@ class Borc():
 
         """ 
         if optimize_x:
-            xpts = self.problem.sample_x(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+            xpts = self.surrogate.problem.sample_x(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
         elif optimize_xi:               
-            xpts = self.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+            xpts = self.surrogate.problem.sample_xi(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
         else:
-            xpts = self.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
+            xpts = self.surrogate.problem.sample(nsamples=nstarts, method=self.sample_method).unsqueeze(1)
             
         new_x, max_acq = self._constrained_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
@@ -227,39 +191,43 @@ class Borc():
         get (new_x, new_y) then update the GP models
 
         """      
+        # if new_x != None: 
+        #     self.fbest, self.xbest = self.surrogate.update(new_x)
+        # else: 
+        #     self.fbest, self.xbest = self.surrogate.update(self.new_x)
         if new_x != None: 
-            self.fbest, self.xbest = self.surrogate.update(new_x)
+            self.surrogate.update(new_x)
         else: 
-            self.fbest, self.xbest = self.surrogate.update(self.new_x)
+            self.surrogate.update(self.new_x)
 
-    def optimize(self, iters=10, acq_iters=20, nstarts=5, output=False):
-        """
-        Run the optimization 
+    # def optimize(self, iters=10, acq_iters=20, nstarts=5, output=False):
+    #     """
+    #     Run the optimization 
 
-        """
-        print(f"Bayesian Optimization | Num objectives = {len(self.surrogate.objective_gps)}, Num constraints = {len(self.surrogate.constraint_gps)}")
+    #     """
+    #     print(f"Bayesian Optimization | Num objectives = {len(self.surrogate.objective_gps)}, Num constraints = {len(self.surrogate.constraint_gps)}")
         
-        for i in range(iters):
-            if output:
-                print(f"Iter: {i + 1}/{iters} | Max Objective: {self.fbest},  Optimal x : {self.xbest}")
-            self.optimize_acq(acq_iters, nstarts) 
-            self.step()      
+    #     for i in range(iters):
+    #         if output:
+    #             # print(f"Iter: {i + 1}/{iters} | Max Objective: {self.fbest},  Optimal x : {self.xbest}")
+    #         self.optimize_acq(acq_iters, nstarts) 
+    #         self.step()      
 
     def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False):
         """
         Monte carlo estimate of RBO objective and constraint(s) 
 
         """
-        x_batch, _ = self.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
+        x_batch, _ = self.surrogate.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
         f = self.surrogate.predict_objectives(x_batch)[0].mu
         g = self.surrogate.predict_constraints(x_batch)[0] # NOTE multiple constraints not tested  
 
         mu = f.mean(dim=1)
         if g != []:
             gm, gstd = g.posterior()
-            p = torch.distributions.Normal(gm, gstd).cdf(torch.tensor([0.0]).to(gm.device)) 
-            pi = p.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
-            # pi = (torch.sum(gm <= 0, dim=1) / nsamples).unsqueeze(0) if g != [] else [] # surrogate mean estimate 
+            # p = torch.distributions.Normal(gm, gstd).cdf(torch.tensor([0.0]).to(gm.device)) 
+            # pi = p.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
+            pi = (torch.sum(gm <= 0, dim=1) / nsamples).unsqueeze(0) if g != [] else [] # surrogate mean estimate 
         else:
             pi = []
 

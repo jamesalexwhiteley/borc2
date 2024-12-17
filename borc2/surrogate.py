@@ -1,21 +1,96 @@
 import torch
 import warnings
+import os 
+import pickle 
 from gpytorch.utils.warnings import GPInputWarning
 warnings.filterwarnings("ignore", category=GPInputWarning)
 warnings.filterwarnings("ignore", message=r".*added jitter of*")
 
-from borc2.gp import NoiselessGP, HomoscedasticGP
+from borc2.gp import NoiselessGP, HomoscedasticGP, GPModelIO
 from borc2.utilities import to_device 
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
+class SurrogateIO: 
+    @staticmethod 
+    def save(surrogate, output_folder):
+        """
+        Save the Surrogate model, including its objective and constraint GPs.
+
+        """
+        os.makedirs(output_folder, exist_ok=True)
+        
+        objective_paths = []
+        for i, gp in enumerate(surrogate.objective_gps):
+            path = os.path.join(output_folder, f"objective_gp_{i}.pth")
+            GPModelIO.save(gp, path)
+            objective_paths.append(path)
+        
+        constraint_paths = []
+        for i, gp in enumerate(surrogate.constraint_gps):
+            path = os.path.join(output_folder, f"constraint_gp_{i}.pth")
+            GPModelIO.save(gp, path)
+            constraint_paths.append(path)
+
+        save_dict = {
+            'surrogate_class': surrogate.__class__,
+            'objective_gp_paths': objective_paths, 
+            'constraint_gp_paths': constraint_paths,  
+            'x': surrogate.x, 
+            'm': surrogate.m,  
+            'f': surrogate.f, 
+            'g': surrogate.g, 
+            'fbest': surrogate.fbest, 
+            'xbest': surrogate.xbest, 
+            'device': surrogate.device
+        }
+
+        torch.save(surrogate.problem, os.path.join(output_folder, "problem.pth"))
+        torch.save(save_dict, os.path.join(output_folder, "surrogate_state.pth"))
+
+    @staticmethod
+    def load(output_folder):
+        """
+        Load the Surrogate model and its GPs.
+
+        """
+        surrogate_state = torch.load(os.path.join(output_folder, "surrogate_state.pth"), weights_only=False)
+        
+        objective_gps = []
+        for path in surrogate_state['objective_gp_paths']:
+            gp = GPModelIO.load(path)
+            objective_gps.append(gp)
+        
+        constraint_gps = []
+        for path in surrogate_state['constraint_gp_paths']:
+            gp = GPModelIO.load(path)
+            constraint_gps.append(gp)
+        
+        problem = torch.load(os.path.join(output_folder, "problem.pth"), weights_only=False)
+        surrogate_class = surrogate_state.get('surrogate_class')                
+        surrogate = surrogate_class(problem)
+
+        surrogate.objective_gps = objective_gps
+        surrogate.constraint_gps = constraint_gps
+        surrogate.x = surrogate_state.get('x')
+        surrogate.m = surrogate_state.get('m')
+        surrogate.f = surrogate_state.get('f')
+        surrogate.g = surrogate_state.get('g')
+        surrogate.fbest = surrogate_state.get('fbest')
+        surrogate.xbest = surrogate_state.get('xbest')
+        surrogate.device = surrogate_state.get('device')
+
+        return surrogate
+
 class Surrogate():
     def __init__(self, 
-                 gp=NoiselessGP, 
+                 problem,
+                 gp=NoiselessGP,
                  gp_con=None, 
                  ntraining=10, 
                  nstarts=5,
-                 sample_method='sobol'):
+                 sample_method='sobol',
+                 dtype=torch.float):
         """
         A GP surrogate model for problem class.  
 
@@ -39,20 +114,21 @@ class Surrogate():
         self.batch_pred = None 
         self.name = "GP"
         self.device = "cpu"
+        self.dtype = dtype 
         self.x = None 
         self.m = None 
-        self.f = None   
+        self.f = None 
         self.g = None 
 
-    def add_problem(self, problem):
-        """ 
-        Gaussian Process surrogate for optimization problem
+    # def add_problem(self, problem):
+    #     """ 
+    #     Gaussian Process surrogate for optimization problem
 
-        (GP created for each function and each constraint) 
+    #     (GP created for each function and each constraint) 
 
-        """ 
+    #     """ 
         self.problem = problem 
-        self.batch_gp = [None] # batch gp
+        # self.batch_gp = [None] # batch gp
         self.objective_gps = [None for _ in range(len(self.problem.obj_fun))] # objective gps 
         self.constraint_gps = [None for _ in range(len(self.problem.con_fun))] # constraint gps 
 
@@ -89,7 +165,7 @@ class Surrogate():
         Initialise data from model  
 
         """
-        self.x = self.problem.sample(nsamples=nsamples, method=method) 
+        self.x = self.problem.sample(nsamples=nsamples, method=method, dtype=self.dtype)
         self.m = self.problem.model(self.x) 
         self.f = self.problem.objectives(self.m) 
         self.g = self.problem.constraints(self.m) 
@@ -110,13 +186,13 @@ class Surrogate():
             number of input points used to model gps 
 
         """
-        self.best, self.xbest = None, None 
+        self.fbest, self.xbest = None, None 
         with torch.no_grad(): 
             # look for a feasible point to initialize archive 
             for i in range(10):
                 self.run_model_initial(nsamples=nsamples, method=sample_method)
                 self.get_best()
-                if self.best != None:
+                if self.fbest != None:
                     break 
                 elif i == 10:
                     raise ValueError("After 10 attempts, could not find an initialization with at least one feasible point")
@@ -133,7 +209,7 @@ class Surrogate():
                 raise ValueError("Constraint train_y needs to be 1d to be able to fit gps")
             self.constraint_gps[i] = self.build_con_gp(self.x, y, normalize_x=normalize_x, standardize_y=standardize_y)
 
-        return self.best, self.xbest 
+        return self.fbest, self.xbest 
     
     def get_best(self):
         """
@@ -141,7 +217,7 @@ class Surrogate():
 
         """
         _, max_ind = torch.max(self.f, dim=0)
-        self.best = self.f[max_ind] 
+        self.fbest = self.f[max_ind] 
         self.xbest = self.x[max_ind]
 
     def run_model_update(self, new_x):
@@ -165,14 +241,14 @@ class Surrogate():
         new_y : torch.Tensor, shape=(nsamples, nparam)  
             new output test data 
         
-        """        
-        # run on same device as training data 
-        device = self.x.device
-        new_x = new_x.to(device)
+        """         
+        # device 
+        new_x = new_x.to(self.device)
         self.new_x = new_x
+
         f, g = self.run_model_update(self.new_x)
-        f = f.to(device)
-        g = to_device(g, device)
+        g = to_device(g, self.device) 
+        f = f.to(self.device)
 
         for i, gp in enumerate(self.objective_gps): 
             gp.update(self.new_x, f[:, i]) 
@@ -187,7 +263,7 @@ class Surrogate():
             self.g = torch.cat((self.g, g), dim=0)
 
         with torch.no_grad(): 
-            return self.best, self.xbest 
+            return self.fbest, self.xbest 
     
     def predict_objectives(self, x, return_std=True, return_var=False, return_cov=False, grad=False):
         """

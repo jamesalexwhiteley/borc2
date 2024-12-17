@@ -1,8 +1,9 @@
 import torch 
 from matplotlib import pyplot as plt
+import os 
 
 from borc2.problem import Problem 
-from borc2.surrogate import Surrogate
+from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 
@@ -19,7 +20,7 @@ def plot2d(problem, borc):
     x2 = torch.linspace(problem.param_bounds["x2"][0], problem.param_bounds["x2"][1], steps)
     X1, X2 = torch.meshgrid(x1, x2, indexing='ij')
     x = torch.stack([X1.flatten(), X2.flatten()], dim=-1)
-    y = (model(x), model.f())[1].reshape(shape)
+    y = (problem.model(x), problem.objectives().flatten())[1].reshape(shape)
     ax.plot_surface(X1.numpy(), X2.numpy(), y.numpy(), cmap='viridis', alpha=0.5)
     ax.set_title('Himmelblau Function and GP')
 
@@ -66,6 +67,10 @@ class Model():
 
 if __name__ == "__main__": 
 
+    base_folder = os.path.join(os.getcwd(), "models")
+    os.makedirs(base_folder, exist_ok=True)
+    output_dir  = os.path.join(base_folder, "borc_2d")
+
     problem = Problem()
     model = Model()
 
@@ -78,14 +83,17 @@ if __name__ == "__main__":
     problem.add_model(model)
     problem.add_objectives([model.f])
 
-    surrogate = Surrogate()
-    acquisition = Acquisition(f="EI")
-    borc = Borc(problem, surrogate, acquisition)
-    borc.initialize(nsamples=30)
+    surrogate = Surrogate(problem) 
+    acquisition = Acquisition(f="EI") 
+    borc = Borc(surrogate, acquisition) 
+    borc.initialize(nsamples=100) 
 
-    iters = 2
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
+
+    iters = 2 
     for i in range(iters): 
-        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
+        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.numpy()},  Optimal x : {borc.surrogate.xbest.numpy()}") 
         new_x, max_acq = borc.batch_optimize_acq(iters=20, nstarts=10) 
-        plot2d(problem, borc)
+        plot2d(surrogate.problem, borc)
         borc.step()

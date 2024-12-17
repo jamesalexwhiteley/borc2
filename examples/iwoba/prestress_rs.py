@@ -6,7 +6,7 @@ import numpy as np
 import math 
 
 from borc2.problem import Problem 
-from borc2.surrogate import Surrogate
+from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import MultivariateNormal
@@ -22,7 +22,6 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu' # NOTE 
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -35,31 +34,27 @@ def plotcontour(problem, borc):
 
     fig = plt.figure(figsize=(7, 6))
 
-    # ground truth 
     # tic() 
-    # steps = 100
+    # steps = 50
     # x = torch.linspace(0.1, 1, steps)
     # y = torch.linspace(0.1, 1, steps)
     # X, Y = torch.meshgrid(x, y, indexing='ij')
     # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True) for x in xpts]) # list comprehension
+    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
     # MU = -torch.tensor(mu).view(X.shape).detach()
     # PI = torch.tensor(prob).view(X.shape).detach()
     # toc() 
 
     tic() 
-    steps = 50
+    steps = 15
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = borc.rbo(xpts, nsamples=int(1e3), output=False, return_vals=True)
-    # MU = -mu.view(X.shape).detach()
-    # PI = prob[0].view(X.shape).detach()
-    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True) for x in xpts]) # list comprehension
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension
     MU = -torch.tensor(mu).view(X.shape).detach()
     PI = torch.tensor(prob).view(X.shape).detach()
-    toc() 
+    toc()
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
@@ -175,14 +170,18 @@ class Model():
         return -(concrete + tendons + formwork)
         
     def g(self): 
-        # P >> 0 for feasible (e, P), hence g < 0 for feasible section   
+        # P >> 0 for feasible (e, P), hence g < 0 for feasible section 
         return -self.m.flatten() + 1 
 
 def bayesopt(ninitial, iters, n): 
 
+    base_folder = os.path.join(os.getcwd(), "models")
+    os.makedirs(base_folder, exist_ok=True)
+    output_dir  = os.path.join(base_folder, "prestress")
+
     problem = Problem()
     model = Model()
-    bounds = {"b": (0., 1.0), "h": (0., 1.0)} 
+    bounds = {"b": (0.1, 1.0), "h": (0.1, 1.0)} 
     
     mu = torch.tensor([27.5, 1.5, 1.5, 1.5]) 
     cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
@@ -198,40 +197,45 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g])
 
     xi = problem.sample_xi(nsamples=int(2e2)).to(device)
-    surrogate = Surrogate() 
+    surrogate = Surrogate(problem, ntraining=200, nstarts=5) 
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
-    borc = Borc(problem, surrogate, acquisition) 
+    borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
+    # borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
+    # SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
-    params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    xopt, _ = problem.monte_carlo(params=params, nsamples=int(2e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0.2, 0.4] £830 
-    # v, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    # print(1/v) 
-    # plotcontour(problem, borc) 
+    # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
+    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
 
-    # BayesOpt used to sequentially sample [x,xi] points 
-    res = torch.ones(iters) 
-    for i in range(iters): 
+    # # BayesOpt used to sequentially sample [x,xi] points 
+    # res = torch.ones(iters) 
+    # for i in range(iters): 
 
-        params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-        xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(2e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0.2, 0.4] £830 
-        # v, _ = borc.rbo(xopt, nsamples=int(1e3), return_vals=True) 
+    #     params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+    #     xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
+    #     borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
 
-        # # new_x <- random search 
-        # # borc.step(new_x=problem.sample()) 
+    #     # # new_x <- random search 
+    #     # # borc.step(new_x=problem.sample()) 
 
-        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
-        if i % n == 0: 
-            xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=4, optimize_x=True) 
-            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+    #     if i % n == 0: 
+    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
+    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    # return xopt, res 
-    return None, None 
+    # # return xopt, res 
+
+    plotcontour(problem, borc) 
+    return None, None     
 
 
-if __name__ == "__main__":  
+if __name__ == "__main__": 
 
-    ninitial, iters, n = 10, 1, 1 
+    ninitial, iters, n = 5000, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
+
+    # TODO use GP predictive uncertainiy? error due to invalide inputs to normal distribution loc? 
+    # TODO why do problem.rbo and borc.rbo match, but .constrained_optimize_acq doesn't? 

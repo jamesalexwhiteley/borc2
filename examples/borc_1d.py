@@ -65,15 +65,15 @@ if __name__ == "__main__":
     problem.add_model(model)
     problem.add_objectives([model.f])
     
-    surrogate = Surrogate()
+    surrogate = Surrogate(problem)
     acquisition = Acquisition(f="EI")
-    borc = Borc(problem, surrogate, acquisition) 
+    borc = Borc(surrogate, acquisition) 
     borc.cuda(device)
     borc.initialize(nsamples=6, sample_method="lhs") 
 
-    iters = 3
+    iters = 3 
     for i in range(iters): 
-        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest},  Optimal x : {borc.xbest}") 
+        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.cpu()},  Optimal x : {borc.surrogate.xbest.cpu()}") 
         new_x, max_acq = borc.batch_optimize_acq(iters=50, nstarts=20) 
         plot1d(problem, borc) 
         borc.step(new_x=new_x) 

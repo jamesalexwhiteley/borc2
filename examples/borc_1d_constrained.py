@@ -78,14 +78,14 @@ if __name__ == "__main__":
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    surrogate = Surrogate() 
+    surrogate = Surrogate(problem) 
     acquisition = Acquisition(f="EI", g="PF") 
-    borc = Borc(problem, surrogate, acquisition) 
+    borc = Borc(surrogate, acquisition) 
     borc.initialize(nsamples=4) 
 
     iters = 2
     for i in range(iters): 
-        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.fbest.numpy()},  Optimal x : {borc.xbest.numpy()}") 
+        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.numpy()},  Optimal x : {borc.surrogate.xbest.numpy()}")  
         new_x, max_acq = borc.batch_optimize_acq(iters=100)   
         plot1d(problem, borc) 
         borc.step(new_x=new_x) 

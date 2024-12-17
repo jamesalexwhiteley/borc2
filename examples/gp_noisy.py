@@ -1,6 +1,8 @@
 import torch
+import os
 import matplotlib.pyplot as plt
-from borc2.gp import HomoscedasticGP
+from borc2.gp import HomoscedasticGP, GPModelIO
+from borc2.utilities import tic, toc 
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -49,8 +51,14 @@ def plot2d(x, y, mu, low, high, train_x, train_y):
     plt.show()
 
 if __name__ == "__main__": 
+
+    base_folder = os.path.join(os.getcwd(), "models")
+    output_folder = os.path.join(base_folder, "gp_noisy")
+    os.makedirs(output_folder, exist_ok=True)
+    output_path_1  = os.path.join(output_folder, "gp_noisy_1d.pth")
+    output_path_2  = os.path.join(output_folder, "gp_noisy_2d.pth")
  
-    # 1d test function
+    # # 1d test function
     def f(x):
         return x**2 + 3 * torch.sin(3 * x) + torch.normal(0, 1, size=(len(x),))
     x = torch.linspace(-3, 3, 400)
@@ -59,16 +67,18 @@ if __name__ == "__main__":
     ind = torch.randperm(int(len(x)))[:nsamples]
     train_x, train_y = x[ind], y[ind]
 
-    gp = HomoscedasticGP(train_x.unsqueeze(-1), train_y)
+    gp = HomoscedasticGP(train_x.unsqueeze(-1), train_y) 
     gp.fit() 
-    pred = gp.predict(x.unsqueeze(-1), return_std=True)
+    GPModelIO.save(gp, output_path_1)  # save 
+    gp = GPModelIO.load(output_path_1) # load 
+    pred = gp.predict(x.unsqueeze(-1), return_std=True) 
     low, high = pred.mu - 2 * pred.std, pred.mu + 2 * pred.std 
     plot1d(x, y, pred.mu, low, high, train_x, train_y) 
 
     # 2d test function   
     def himmelblau(x, y):
         return (x**2 + y - 11)**2 + (x + y**2 - 7)**2 + torch.normal(0, 100, size=(len(x),))
-    steps = 40
+    steps = 20
     x1 = torch.linspace(-6, 6, steps)
     x2 = torch.linspace(-6, 6, steps)
     X1, X2 = torch.meshgrid(x1, x2, indexing='ij')
@@ -80,6 +90,8 @@ if __name__ == "__main__":
 
     gp = HomoscedasticGP(train_x, train_y)
     gp.fit() 
+    GPModelIO.save(gp, output_path_2)  # save 
+    gp = GPModelIO.load(output_path_2) # load 
     pred = gp.predict(x, return_std=True)
     low, high = pred.mu - 2 * pred.std, pred.mu + 2 * pred.std
     plot2d(x, y, pred.mu, low, high, train_x, train_y) 

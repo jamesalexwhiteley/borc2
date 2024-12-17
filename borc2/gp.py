@@ -1,3 +1,4 @@
+import os 
 import torch 
 import gpytorch 
 import warnings
@@ -30,6 +31,66 @@ class Posterior():
         for attr, value in self.__dict__.items():
             if value != None:
                 setattr(self, attr, value.to(device))
+
+class GPModelIO:
+    @staticmethod
+    def save(model, output_path, metadata=None):
+        """
+        Save GP model, and optional metadata.
+
+        """
+        # save gp model data and state 
+        save_dict = {
+            'model_class': model.__class__,
+            'model_state_dict': model.state_dict(),
+            'likelihood_state_dict': model.likelihood.state_dict(),
+            'train_x': model.train_x, 
+            'train_y': model.train_y,
+            'normalize_x': model.normalize_x,
+            'standardize_y': model.standardize_y,
+            'scaler_x': model.scaler_x,
+            'scaler_y': model.scaler_y,
+            'device': model.device 
+        } 
+
+        if metadata:
+            save_dict['metadata'] = metadata
+        torch.save(save_dict, output_path)
+
+    @staticmethod
+    def load(output_path, *model_args, **model_kwargs):
+        """
+        Load GP model.
+
+        """
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"No file found at {output_path}")
+        
+        checkpoint = torch.load(output_path, weights_only=False)
+
+        # initialise new gp model 
+        model_class = checkpoint['model_class']
+        train_x = checkpoint['train_x']
+        train_y = checkpoint['train_y']
+        model = model_class(train_x=train_x, train_y=train_y)
+
+        # load state dict and internal data 
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.likelihood.load_state_dict(checkpoint['likelihood_state_dict'])
+        model.normalize_x = checkpoint['normalize_x']
+        model.standardize_y = checkpoint['standardize_y']
+        model.scaler_x = checkpoint['scaler_x']
+        model.scaler_y = checkpoint['scaler_y']
+        model.device = checkpoint['device'] 
+
+        model.cuda(model.device)
+        model.eval()
+        
+        metadata = checkpoint.get('metadata', {})
+        if metadata:
+            print(f"Loaded metadata: {metadata}")
+        
+        return model 
     
 class HomoscedasticGP(gpytorch.models.ExactGP):
     def __init__(self, 
@@ -37,7 +98,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
                  train_y, 
                  normalize_x=True,
                  standardize_y=True, 
-                 ntraining=10, 
+                 ntraining=100, 
                  nstarts=5):
         """
         gpytorch.models.ExactGP
@@ -57,8 +118,8 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         self.standardize_y = standardize_y 
         self.ntraining = ntraining 
         self.nstarts = nstarts  
-        self.best = torch.max(train_y) 
-        self.xbest = train_x[list(torch.where(train_y == self.best))]    
+        self.fbest = torch.max(train_y) 
+        self.xbest = train_x[list(torch.where(train_y == self.fbest))]    
 
         if self.normalize_x:
             self.scaler_x = NormalScaler(train_x, dim=0) 
@@ -75,10 +136,11 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         super().__init__(train_x, train_y, likelihood)
         self.likelihood = likelihood
         self.mean_module = gpytorch.means.ZeroMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=train_x.size(1))) # use seperate hyperparameter for each dimension 
+        # self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=train_x.size(1))) 
 
-    def forward(self, x):
-        """
+    def forward(self, x): 
+        """ 
         Compute the mean and covariance functions at the point x 
 
         Parameters
@@ -123,14 +185,13 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         for _ in range(self.nstarts):
 
             self.initialize()
-            optimizer = torch.optim.Adam(self.parameters(), lr=0.2)  
+            optimizer = torch.optim.Adam(self.parameters(), lr=0.1)  
             mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self) 
 
             for _ in range(self.ntraining):
                 optimizer.zero_grad()
                 res = self(self.train_x)
                 loss = -mll(res, self.train_y).sum()
-                # loss.backward(retain_graph=True) # NOTE 
                 loss.backward() 
                 optimizer.step() 
 
@@ -247,8 +308,8 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
             train_x = torch.cat((x, new_x), dim=-2)
             train_y = torch.cat((y, new_y), dim=-1)
 
-            self.best = torch.max(train_y) 
-            self.xbest = train_x[list(torch.where(train_y == self.best))] 
+            self.fbest = torch.max(train_y) 
+            self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
 
             if self.normalize_x:
                 self.scaler_x = NormalScaler(train_x, dim=0) 

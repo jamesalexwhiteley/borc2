@@ -55,7 +55,7 @@ class Problem():
             samples = torch.tensor(qmc.LatinHypercube(d=dim).random(nsamples)) 
         return samples 
         
-    def sample_x(self, nsamples=1, method="sobol", samples=None):
+    def sample_x(self, nsamples=1, method="sobol", samples=None, dtype=torch.float):
         """ 
         Sample determinisitc parameters uniformly between bounds
 
@@ -86,9 +86,9 @@ class Problem():
         for i, b in enumerate(self.param_bounds.values()):
             x[:, i] = samples[:, i] * (b[1] - b[0]) + b[0] 
                 
-        return x
+        return x.to(dtype)
 
-    def sample_xi(self, nsamples=1, method="sobol", samples=None):
+    def sample_xi(self, nsamples=1, method="sobol", samples=None, dtype=torch.float):
         """ 
         Sample from normal distributions over probabilistic parameters 
 
@@ -116,9 +116,9 @@ class Problem():
         # transform [0, 1] -> p(xi)
         xi = self.param_dist.transform_uniform_samples(samples)
 
-        return xi 
+        return xi.to(dtype)
 
-    def sample(self, nsamples=1, method="sobol"):
+    def sample(self, nsamples=1, method="sobol", dtype=torch.float):
         """ 
         Sample both determinisitc and probabilistic parameters 
 
@@ -156,7 +156,7 @@ class Problem():
             self.x[:, 0:dim_x] = self.sample_x(nsamples, method=method, samples=samples[:, 0:dim_x])    
             self.x[:, dim_x : dim_x + dim_xi] = self.sample_xi(nsamples, method=method, samples=samples[:, dim_x : dim_x + dim_xi])
 
-            return self.x
+            return self.x.to(dtype)
         
     def gen_batch_data(self, x, xi=None, nsamples=int(5e2), fixed_base_samples=True, method="sobol"):
         """
