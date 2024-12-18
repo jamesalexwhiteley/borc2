@@ -87,7 +87,7 @@ class Surrogate():
                  problem,
                  gp=NoiselessGP,
                  gp_con=None, 
-                 ntraining=10, 
+                 ntraining=100, 
                  nstarts=5,
                  sample_method='sobol',
                  dtype=torch.float):

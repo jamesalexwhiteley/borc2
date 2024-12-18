@@ -16,6 +16,9 @@ from staticFEM.models import Frame
 from pystressed.models import SectionForce 
 from pystressed.servicability import plot_magnel, optimize_magnel, optimize_and_plot_magnel 
 
+import warnings
+warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try another solved*")  
+
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
@@ -44,7 +47,7 @@ def plotcontour(problem, borc):
     # toc() 
 
     tic() 
-    steps = 10
+    steps = 100
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -175,7 +178,7 @@ def bayesopt(ninitial, iters, n):
 
     base_folder = os.path.join(os.getcwd(), "models")
     os.makedirs(base_folder, exist_ok=True)
-    output_dir  = os.path.join(base_folder, "prestress")
+    output_dir  = os.path.join(base_folder, "prestress_rs")
 
     problem = Problem()
     model = Model()
@@ -200,42 +203,32 @@ def bayesopt(ninitial, iters, n):
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
-    SurrogateIO.save(borc.surrogate, output_dir) 
-    borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
     # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters) 
-    # for i in range(iters): 
+    # BayesOpt used to sequentially sample [x,xi] points 
+    res = torch.ones(iters) 
+    for i in range(iters): 
 
-    #     params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    #     xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
-    #     borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+        # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+        # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
+        # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
 
-    #     # # new_x <- random search 
-    #     # # borc.step(new_x=problem.sample()) 
+        # new_x <- random search 
+        borc.step(new_x=problem.sample()) 
 
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+        if i % n == 0: 
+            xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
+            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    # # return xopt, res 
-
-    plotcontour(problem, borc) 
-    return None, None     
+    return xopt, res 
 
 
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 10000, 1, 1 
+    ninitial, iters, n = 1000, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
-
-    # TODO see if we can do anything to speed up predition (e.g., if we don't need variance)
-    # TODO get branin and prestress scripts to run 
-    # TODO use GP predictive uncertainiy? error due to invalide inputs to normal distribution loc? 
-    # TODO why do problem.rbo and borc.rbo match, but .constrained_optimize_acq doesn't? 

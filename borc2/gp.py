@@ -2,9 +2,9 @@ import os
 import torch 
 import gpytorch 
 import warnings
-from gpytorch.utils.warnings import GPInputWarning
-warnings.filterwarnings("ignore", category=GPInputWarning)
 warnings.filterwarnings("ignore", message=r".*Negative variance values detected.*")  
+# from gpytorch.utils.warnings import GPInputWarning
+# warnings.filterwarnings("ignore", category=GPInputWarning) 
 
 from borc2.utilities import NormalScaler, GaussianScaler 
 
@@ -113,13 +113,13 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
     
         """
         self.name = 'HomoscedasticGP'
-        self.jitter = 1e-6
+        self.jitter = 1e-2
         self.normalize_x = normalize_x   
         self.standardize_y = standardize_y 
         self.ntraining = ntraining 
         self.nstarts = nstarts  
         self.fbest = torch.max(train_y) 
-        self.xbest = train_x[list(torch.where(train_y == self.fbest))]    
+        self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
 
         if self.normalize_x:
             self.scaler_x = NormalScaler(train_x, dim=0) 
@@ -184,6 +184,9 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         best_state_dict, min_loss = None, torch.tensor(float('inf'))
         for _ in range(self.nstarts):
 
+            # print(self.train_x)
+            # print(self.train_y)
+
             self.initialize()
             optimizer = torch.optim.Adam(self.parameters(), lr=0.1)  
             mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self) 
@@ -191,16 +194,16 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
             for _ in range(self.ntraining):
                 optimizer.zero_grad()
                 res = self(self.train_x)
-                loss = -mll(res, self.train_y).sum()
+                loss = -mll(res, self.train_y).sum() 
                 loss.backward() 
                 optimizer.step() 
 
-            final_loss = float(loss.detach())
-            if final_loss < min_loss:
-                min_loss = final_loss
-                best_state_dict = self.state_dict()
+            final_loss = float(loss.detach()) 
+            if final_loss < min_loss: 
+                min_loss = final_loss 
+                best_state_dict = self.state_dict() 
 
-        self.load_state_dict(best_state_dict)
+        self.load_state_dict(best_state_dict) 
 
     def fit(self):
         """
@@ -258,15 +261,17 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         if self.normalize_x:
             x = self.scaler_x.normalize(x)
 
-        if grad:
-            with gpytorch.settings.fast_pred_var():
-                self.posterior(self.likelihood(self(x))) 
-                return self.pred    
+        with gpytorch.settings.max_preconditioner_size(100): ######################################## NOTE (!)
+            with gpytorch.settings.cholesky_jitter(self.jitter):
+                if grad:
+                    with gpytorch.settings.fast_pred_var():
+                        self.posterior(self.likelihood(self(x))) 
+                        return self.pred    
 
-        else:
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                self.posterior(self.likelihood(self(x))) 
-                return self.pred
+                else:
+                    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                        self.posterior(self.likelihood(self(x))) 
+                        return self.pred 
                     
     def get_training_data(self, device=None):
         """
@@ -300,13 +305,16 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
 
         """
         x, y = self.get_training_data()
-        device = x.device # run on same device as training data by default 
+        device = x.device  
         new_x = new_x.to(device)
         new_y = new_y.to(device)
 
         with torch.no_grad():
+
             train_x = torch.cat((x, new_x), dim=-2)
             train_y = torch.cat((y, new_y), dim=-1)
+
+            assert train_x.shape[0] == train_y.shape[0]
 
             self.fbest = torch.max(train_y) 
             self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
@@ -323,7 +331,16 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
 
         self.train_x = train_x 
         self.train_y = train_y 
-        self.fit() 
+
+        # try to refit the model
+        try:
+            self.fit()  
+        except Exception as e:
+            print(f"Warning: GP retraining failed. Using existing hyperparameters. Error: {e}")
+            with torch.no_grad():
+                super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)             ##################### NOTE keep this ?
+                self._clear_cache()
+                self.eval()
 
 class NoiselessGP(HomoscedasticGP): 
     def __init__(self, 

@@ -39,9 +39,9 @@ def bayesopt(ninitial, iters, n):
         [0.0375, 0.0875, 0.0875, 0.0375],  # P(x2=0.75, x3=0.2) ...
         ])
     
-    x2_values = torch.tensor([0.25, 0.5, 0.75])
-    x3_values = torch.tensor([0.2, 0.4, 0.6, 0.8])  
-    dist = DiscreteJoint(joint, x2_values, x3_values)
+    x2_values = torch.tensor([0.25, 0.5, 0.75]) 
+    x3_values = torch.tensor([0.2, 0.4, 0.6, 0.8]) 
+    dist = DiscreteJoint(joint, x2_values, x3_values) 
 
     problem.set_bounds(bounds)
     problem.set_dist(dist)
@@ -50,37 +50,37 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g])
 
     xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    surrogate = Surrogate(problem)
+    surrogate = Surrogate(problem, ntraining=10, nstarts=1) # NOTE                   
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
+    acq_iters=50, acq_starts=1 # NOTE 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
-    for i in range(iters):    
+    for i in range(iters):   
 
         # new_x = argmax_[x,xi] EI x PF
         borc.acquisition = Acquisition(f="eEI", g="ePF", xi=xi) 
-        new_x, _ = borc.batch_optimize_acq(iters=50, nstarts=20, optimize_x=True) 
+        new_x, _ = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_x=True) 
  
         # new_xi = argmax_xi MSE 
         borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
-        new_xi, _ = borc.batch_optimize_acq(iters=50, nstarts=20, optimize_xi=True) 
+        new_xi, _ = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_xi=True) # NOTE
         borc.step(new_x=torch.cat([new_x, new_xi], dim=1)) 
-        # print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
+        print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
 
         # fbest = max_x E[f(x,xi)]
         borc.acquisition = Acquisition(f="eMU", xi=xi) 
-        _, borc.fbest = borc.batch_optimize_acq(iters=50, nstarts=20, optimize_x=True) 
+        _, borc.fbest = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_x=True) # NOTE
 
-        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilon 
-        if i % n == 0: 
-            print(i)
-            borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-            xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
-            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+        # # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilon 
+        # if i % n == 0: 
+        #     borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
+        #     xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
+        #     res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+        #     # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     SurrogateIO.save(borc.surrogate, output_dir) 
     borc.surrogate = SurrogateIO.load(output_dir) 
@@ -91,5 +91,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 50, 500, 100 
+    ninitial, iters, n = 100, 0, 100 
     xopt, res = bayesopt(ninitial, iters, n) 
