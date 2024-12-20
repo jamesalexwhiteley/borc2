@@ -35,27 +35,27 @@ def plotcontour(problem, borc):
 
     fig = plt.figure(figsize=(7, 6))
 
-    # tic() 
-    # steps = 50
-    # x = torch.linspace(0.1, 1, steps)
-    # y = torch.linspace(0.1, 1, steps)
-    # X, Y = torch.meshgrid(x, y, indexing='ij')
-    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
-    # MU = -torch.tensor(mu).view(X.shape).detach()
-    # PI = torch.tensor(prob).view(X.shape).detach()
-    # toc() 
-
     tic() 
-    steps = 100
+    steps = 10
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
-    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
+    mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
     MU = -torch.tensor(mu).view(X.shape).detach()
     PI = torch.tensor(prob).view(X.shape).detach()
-    toc()
+    toc() 
+
+    # tic() 
+    # steps = 100
+    # x = torch.linspace(0.1, 1, steps)
+    # y = torch.linspace(0.1, 1, steps)
+    # X, Y = torch.meshgrid(x, y, indexing='ij')
+    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+    # mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension
+    # MU = -torch.tensor(mu).view(X.shape).detach()
+    # PI = torch.tensor(prob).view(X.shape).detach()
+    # toc()
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
@@ -66,6 +66,7 @@ def plotcontour(problem, borc):
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
     plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="upper left")
+    plt.tight_layout()
     plt.savefig(output_path, dpi=600)
     plt.show()
 
@@ -202,30 +203,32 @@ def bayesopt(ninitial, iters, n):
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
+    # borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
 
     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
     # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
+    plotcontour(problem, borc)
 
-    # BayesOpt used to sequentially sample [x,xi] points 
-    res = torch.ones(iters) 
-    for i in range(iters): 
+    # # BayesOpt used to sequentially sample [x,xi] points 
+    # res = torch.ones(iters) 
+    # for i in range(iters): 
 
-        # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-        # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
-        # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+    #     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+    #     # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
+    #     # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
 
-        # new_x <- random search 
-        borc.step(new_x=problem.sample()) 
+    #     # new_x <- random search 
+    #     borc.step(new_x=problem.sample()) 
 
-        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
-        if i % n == 0: 
-            xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
-            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+    #     if i % n == 0: 
+    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
+    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    return xopt, res 
+    # return xopt, res 
+    return None, None 
 
 
 if __name__ == "__main__": 

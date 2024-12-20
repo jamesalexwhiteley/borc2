@@ -36,7 +36,8 @@ def plotcontour(problem, borc):
     # MU = mu.view(X.shape).detach()
     # PI = prob[0].view(X.shape).detach()
 
-    steps = 10
+    # surrogate
+    steps = 100
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -55,6 +56,7 @@ def plotcontour(problem, borc):
     plt.ylabel(r'$x_2$')
     # plt.legend([scatter, proxy], ['Optimal x', r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
     plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
+    plt.tight_layout()
     plt.savefig(output_path, dpi=600)
     plt.show()
 
@@ -119,8 +121,8 @@ def bayesopt(ninitial, iters, n):
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
-    SurrogateIO.save(borc.surrogate, output_dir) 
+    # borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
+    # SurrogateIO.save(borc.surrogate, output_dir) 
     borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.0, 1.0, steps=21), torch.linspace(0.0, 1.0, steps=21)) 
@@ -146,5 +148,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 800, 10, 1 
+    ninitial, iters, n = 500, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

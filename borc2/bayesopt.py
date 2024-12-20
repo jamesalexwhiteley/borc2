@@ -213,23 +213,35 @@ class Borc():
     #         self.optimize_acq(acq_iters, nstarts) 
     #         self.step()      
 
-    def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False):
+    def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False, return_posterior=False):
         """
         Monte carlo estimate of RBO objective and constraint(s) 
 
         """
         x_batch, _ = self.surrogate.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
-        f = self.surrogate.predict_objectives(x_batch)[0].mu
-        g = self.surrogate.predict_constraints(x_batch)[0] # NOTE multiple constraints not tested  
+        f = self.surrogate.predict_objectives(x_batch)[0]
+        g = self.surrogate.predict_constraints(x_batch)[0] # NOTE multiple constraints not implemented   
 
-        mu = f.mean(dim=1)
+        f_mu, f_std = f.posterior()
+        f1, f2 = f_mu.mean(dim=1), f_std.mean(dim=1)
+
         if g != []:
-            gm, gstd = g.posterior()
-            # p = torch.distributions.Normal(gm, gstd).cdf(torch.tensor([0.0]).to(gm.device)) 
-            # pi = p.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
-            pi = (torch.sum(gm <= 0, dim=1) / nsamples).unsqueeze(0) if g != [] else [] # surrogate mean estimate 
-        else:
-            pi = []
+            g_mu, g_std = g.posterior()
+            pi = torch.distributions.Normal(g_mu, g_std).cdf(torch.tensor([0.0]).to(g_mu.device)) 
+            g1 = pi.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
+            g2 = torch.sqrt(pi.var(dim=1, unbiased=True) / nsamples).unsqueeze(0) # NOTE standard error of mean estimate 
+            # g1 = (torch.sum(g_mu <= 0, dim=1) / nsamples).unsqueeze(0) 
+            # g2 = (g1 * (1 - g1)) / nsamples
+            # print(g1)
+            # print(g2)
+            # indicator_samples = (g_mu <= 0).float() 
+            # g1 = indicator_samples.mean(dim=1).unsqueeze(0)
+            # g2 = indicator_samples.var(dim=1, unbiased=True).unsqueeze(0) / nsamples
+            # print(g1) 
+            # print(g2) 
+        else: 
+            g1 = [] 
+            g2 = [] 
 
         if output:
             print(f"x = {list(x.detach().cpu())}")
@@ -238,4 +250,7 @@ class Borc():
                 print(f"P[g_{i+1}(x,xi)<0] = {p}")
 
         if return_vals:
-            return mu, [p for p in pi]
+            return f1, [p for p in g1]
+        
+        if return_posterior:
+            return f1, f2, [p for p in g1], [p for p in g2]

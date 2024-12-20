@@ -67,13 +67,13 @@ def bayesopt(ninitial, iters, n):
  
         # new_xi = argmax_xi MSE 
         borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
-        new_xi, _ = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_xi=True) # NOTE
+        new_xi, _ = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_xi=True)
         borc.step(new_x=torch.cat([new_x, new_xi], dim=1)) 
         print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
 
         # fbest = max_x E[f(x,xi)]
         borc.acquisition = Acquisition(f="eMU", xi=xi) 
-        _, borc.fbest = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_x=True) # NOTE
+        _, borc.fbest = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts, optimize_x=True) 
 
         # # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilon 
         # if i % n == 0: 
