@@ -35,12 +35,14 @@ def torch_optim(f, x, iters, bounds, optimiser='ADAM', lr=0.1):
         b1 = b1.unsqueeze(0).expand_as(x)
 
     x.requires_grad_(True) 
+    
     if optimiser == 'LBFGS':
         optimizer = torch.optim.LBFGS([x], lr=lr) 
     elif optimiser == 'ADAM':
         optimizer = torch.optim.Adam([x], lr=lr)
 
     for _ in range(int(iters)):
+        print(x)
         optimizer.zero_grad() 
         loss = f(x)
         loss = -loss.sum() 

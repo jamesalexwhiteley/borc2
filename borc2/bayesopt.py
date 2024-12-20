@@ -34,7 +34,7 @@ class Borc():
         self.surrogate.cuda(device)
         self.device = device 
 
-    def initialize(self, nsamples='default', sample_method="lhs", max_acq=torch.tensor([0])):
+    def initialize(self, nsamples='default', sample_method="lhs", max_acq=torch.tensor([0.0])):
         """
         Build surrogate GPs of problem objectives and constraints
 
@@ -55,14 +55,16 @@ class Borc():
         self.surrogate.build(nsamples=nsamples, sample_method=sample_method) 
         # self.xbest, self.fbest = xbest, fbest
         # self.xbest, self.fbest = self.xbest.to(self.device), self.fbest.to(self.device)
-        self.max_acq = max_acq.to(self.device) 
+        self.max_acq = max_acq.requires_grad_(True).to(self.device) 
 
     def eval_acqf(self, x):
-        acq = [self.acquisition.f(x, gp, self.surrogate.fbest).ravel() for gp in self.surrogate.objective_gps] 
+        fbest = self.surrogate.fbest.requires_grad_(True).to(self.device)
+        acq = [self.acquisition.f(x, gp, fbest).ravel() for gp in self.surrogate.objective_gps] 
         return torch.stack(acq, dim=1)
     
     def eval_acqg(self, x):
-        acq = [self.acquisition.g(x, gp, self.surrogate.fbest).ravel() for gp in self.surrogate.constraint_gps]
+        fbest = self.surrogate.fbest.requires_grad_(True).to(self.device)
+        acq = [self.acquisition.g(x, gp, fbest).ravel() for gp in self.surrogate.constraint_gps]
         return torch.stack(acq, dim=1) if acq != [] else []
 
     def eval_acquisition(self, x): 
@@ -157,9 +159,9 @@ class Borc():
         # optimize 
         f = self.eval_acqf 
         g = self.eval_acqg 
+        
         for x0 in xpts: 
             x, acq = borc2.optimize.CMA_ES(f, g, x0.flatten(), iters, bounds)  
-            # print(f"x {x} | {acq}") 
 
             # choose best from multiple starts
             if max_acq == None: 

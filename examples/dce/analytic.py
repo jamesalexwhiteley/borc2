@@ -169,7 +169,7 @@ def bayesopt(ninitial, iters):
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
+    borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0.0])) 
 
     points0, _ = borc.surrogate.objective_gps[0].get_training_data()
     # points1 = [torch.tensor([[0.5, -1]]), torch.tensor([[1.5, 0.75]])]
@@ -177,19 +177,26 @@ def bayesopt(ninitial, iters):
 
     for _ in range(iters):
 
-        borc.acquisition = Acquisition(f="eEI", g="ePF", xi=xi) 
-        new_x, max_acq_x = borc.batch_optimize_acq(iters=100, nstarts=5, optimize_x=True) 
+        # borc.acquisition = Acquisition(f="eMU", xi=xi)  
+        # _, borc.fbest = borc.batch_optimize_acq(iters=50, nstarts=5, optimize_x=True) 
+
+        borc.acquisition = Acquisition(f="PI") 
+        new_x, max_acq_x = borc.batch_optimize_acq(iters=2, nstarts=1) 
+
+        # # borc.acquisition = Acquisition(f="eEI", g="ePF", xi=xi) 
+        # borc.acquisition = Acquisition(f="eEI", xi=xi) 
+        # new_x, max_acq_x = borc.batch_optimize_acq(iters=10, nstarts=1, optimize_x=True) 
  
-        borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
-        new_xi, max_acq_xi = borc.batch_optimize_acq(iters=100, nstarts=5, optimize_xi=True)
-        borc.step(new_x=torch.cat([new_x, new_xi], dim=1))
-        points1.append(torch.cat([new_x, new_xi], dim=1))
-        print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
+        # borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
+        # new_xi, max_acq_xi = borc.batch_optimize_acq(iters=100, nstarts=5, optimize_xi=True)
+        # borc.step(new_x=torch.cat([new_x, new_xi], dim=1))
+        # points1.append(torch.cat([new_x, new_xi], dim=1))
+        # print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
 
-        borc.acquisition = Acquisition(f="eMU", xi=xi) 
-        _, borc.fbest = borc.batch_optimize_acq(iters=50, nstarts=5, optimize_x=True) 
+        # borc.acquisition = Acquisition(f="eMU", xi=xi) 
+        # _, borc.fbest = borc.batch_optimize_acq(iters=50, nstarts=5, optimize_x=True) 
 
-        plotfig(model, problem, borc, points0, torch.cat(points1), torch.tensor((new_x, max_acq_x)), torch.tensor((new_xi, max_acq_xi)))
+        # plotfig(model, problem, borc, points0, torch.cat(points1), torch.tensor((new_x, max_acq_x)), torch.tensor((new_xi, max_acq_xi)))
 
     # plotfig(model, problem, borc, points0, torch.cat(points1), (new_x, max_acq_x), (new_xi, max_acq_xi))
 
@@ -199,3 +206,7 @@ def bayesopt(ninitial, iters):
 if __name__ == "__main__": 
     ninitial, iters = 75, 1 
     xopt, res = bayesopt(ninitial, iters) 
+
+    # TODO extreme z input to self.normal.cdf(z) is breaking gradient flow 
+    # TODO possibly incorrect fbest (ok for determinsitic optimisation) is the cause of this (maybe not)? 
+    # TODO why is std so small, I wonder? 

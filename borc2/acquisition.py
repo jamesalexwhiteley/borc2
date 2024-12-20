@@ -105,8 +105,20 @@ class Acquisition():
 
         """
         mu, std = self.gp_predict(x, gp)
+        print(mu)
+        print(std)
+        print(fbest)
         z = (mu - fbest) / torch.clamp(std, min=self.min) 
+        z = torch.clamp(z, min=-3, max=3)
+        # return self.normal.cdf(z)
+        # log_cdf = torch.log(self.normal.cdf(z) + 1e-9)
+        # return log_cdf.exp()
+        print(z)
+        print()
         return self.normal.cdf(z)
+        # print(torch.clamp(z, min=-5, max=5))
+        # return -torch.log(self.normal.cdf(torch.clamp(z, min=-5, max=5)) + 1e-9).mean()
+        # return 0.5 * (1 + torch.erf(z / torch.sqrt(torch.tensor(2.0))))
     
     def entropy(self, x, gp, fbest): 
         """
