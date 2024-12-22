@@ -92,7 +92,7 @@ class Borc():
         else: 
             return torch.sum(acqf, dim=1) 
     
-    def _batch_optimize_acq(self, xpts, iters=10, optimize_x=False, optimize_xi=False):
+    def _batch_optimize_acq(self, xpts, lr, iters=10, optimize_x=False, optimize_xi=False):
         """
         Optimize the acquisition function in batch mode over the points xpts 
 
@@ -112,7 +112,7 @@ class Borc():
         bounds = bounds.to(self.device)
         self.new_x, max_acq = self.new_x.to(self.device), max_acq.to(self.device) 
 
-        xpts, acq = borc2.optimize.ADAM(self.eval_acquisition, xpts, iters, bounds) 
+        xpts, acq = borc2.optimize.ADAM(self.eval_acquisition, xpts, iters, bounds, lr=lr) 
 
         # choose best from multiple starts 
         with torch.no_grad():
@@ -122,7 +122,7 @@ class Borc():
             
         return self.new_x.clone().detach(), max_acq.clone().detach()
     
-    def batch_optimize_acq(self, iters=10, nstarts=5, optimize_x=False, optimize_xi=False):
+    def batch_optimize_acq(self, iters=10, nstarts=5, optimize_x=False, optimize_xi=False, lr=0.1):
         """ 
         Optimize the acquisition function. 
 
@@ -133,7 +133,7 @@ class Borc():
             xpts = self.surrogate.problem.sample_xi(nsamples=nstarts, method=self.sample_method)
         else:
             xpts = self.surrogate.problem.sample(nsamples=nstarts, method=self.sample_method)
-        new_x, max_acq = self._batch_optimize_acq(xpts=xpts, iters=iters, optimize_x=optimize_x, optimize_xi=optimize_xi) 
+        new_x, max_acq = self._batch_optimize_acq(xpts=xpts, iters=iters, lr=lr, optimize_x=optimize_x, optimize_xi=optimize_xi) 
 
         return new_x, max_acq
 
@@ -159,7 +159,7 @@ class Borc():
         # optimize 
         f = self.eval_acqf 
         g = self.eval_acqg 
-        
+
         for x0 in xpts: 
             x, acq = borc2.optimize.CMA_ES(f, g, x0.flatten(), iters, bounds)  
 
@@ -219,10 +219,12 @@ class Borc():
         """
         Monte carlo estimate of RBO objective and constraint(s) 
 
+        NOTE use with multiple constraints has not been implemented 
+
         """
         x_batch, _ = self.surrogate.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
         f = self.surrogate.predict_objectives(x_batch)[0]
-        g = self.surrogate.predict_constraints(x_batch)[0] # NOTE multiple constraints not implemented   
+        g = self.surrogate.predict_constraints(x_batch)[0]  
 
         f_mu, f_std = f.posterior()
         f1, f2 = f_mu.mean(dim=1), f_std.mean(dim=1)
@@ -231,7 +233,7 @@ class Borc():
             g_mu, g_std = g.posterior()
             pi = torch.distributions.Normal(g_mu, g_std).cdf(torch.tensor([0.0]).to(g_mu.device)) 
             g1 = pi.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
-            g2 = torch.sqrt(pi.var(dim=1, unbiased=True) / nsamples).unsqueeze(0) # NOTE standard error of mean estimate 
+            g2 = torch.sqrt(pi.var(dim=1, unbiased=True) / nsamples).unsqueeze(0) 
             # g1 = (torch.sum(g_mu <= 0, dim=1) / nsamples).unsqueeze(0) 
             # g2 = (g1 * (1 - g1)) / nsamples
             # print(g1)

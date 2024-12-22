@@ -305,6 +305,8 @@ class Problem():
         """
         Monte carlo estimate of RBO objective and constraint(s) 
 
+        NOTE use with multiple constraints has not been implemented 
+
         """
         x_batch, _ = self.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
         m = self.model(x_batch.view(-1, x_batch.size(-1)))

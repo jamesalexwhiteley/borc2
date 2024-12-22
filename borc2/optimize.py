@@ -12,14 +12,14 @@ warnings.filterwarnings("ignore", message=r".*Bounds are 1.0 sigma away from eac
 # ============================================= 
 # pytorch 
 # =============================================  
-def LBFGS(f, x, iters, bounds, lr=0.01):     
+def LBFGS(f, x, iters, bounds, lr=0.1):     
     """
     Unconstrained optimisation using torch.optim.LBFGS with bounds 
 
     """
     return torch_optim(f, x, iters, bounds, optimiser='LBFGS', lr=lr)
 
-def ADAM(f, x, iters, bounds, lr=0.02):
+def ADAM(f, x, iters, bounds, lr=0.1):
     """
     Unconstrained optimisation using torch.optim.ADAM with bounds 
 
@@ -41,13 +41,15 @@ def torch_optim(f, x, iters, bounds, optimiser='ADAM', lr=0.1):
     elif optimiser == 'ADAM':
         optimizer = torch.optim.Adam([x], lr=lr)
 
+    def closure():
+        optimizer.zero_grad()  
+        loss = f(x)            
+        loss = -loss.sum()     
+        loss.backward()    
+        return loss
+
     for _ in range(int(iters)):
-        print(x)
-        optimizer.zero_grad() 
-        loss = f(x)
-        loss = -loss.sum() 
-        loss.backward() 
-        optimizer.step()
+        optimizer.step(closure)
 
     with torch.no_grad():
         x = torch.min(torch.max(x, b0), b1)

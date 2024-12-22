@@ -71,10 +71,10 @@ if __name__ == "__main__":
     borc.cuda(device)
     borc.initialize(nsamples=6, sample_method="lhs") 
 
-    iters = 1
+    iters = 3 
     for i in range(iters): 
         print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.cpu()},  Optimal x : {borc.surrogate.xbest.cpu()}") 
-        new_x, max_acq = borc.batch_optimize_acq(iters=1, nstarts=1) 
-        # plot1d(problem, borc) 
-        # borc.step(new_x=new_x) 
+        new_x, max_acq = borc.batch_optimize_acq(iters=20, nstarts=10) 
+        plot1d(problem, borc) 
+        borc.step(new_x=new_x) 
        

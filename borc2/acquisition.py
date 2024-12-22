@@ -105,20 +105,8 @@ class Acquisition():
 
         """
         mu, std = self.gp_predict(x, gp)
-        print(mu)
-        print(std)
-        print(fbest)
         z = (mu - fbest) / torch.clamp(std, min=self.min) 
-        z = torch.clamp(z, min=-3, max=3)
-        # return self.normal.cdf(z)
-        # log_cdf = torch.log(self.normal.cdf(z) + 1e-9)
-        # return log_cdf.exp()
-        print(z)
-        print()
         return self.normal.cdf(z)
-        # print(torch.clamp(z, min=-5, max=5))
-        # return -torch.log(self.normal.cdf(torch.clamp(z, min=-5, max=5)) + 1e-9).mean()
-        # return 0.5 * (1 + torch.erf(z / torch.sqrt(torch.tensor(2.0))))
     
     def entropy(self, x, gp, fbest): 
         """
@@ -190,22 +178,24 @@ class Acquisition():
         See Arendt et al. "Objective-Oriented Sequential Sampling for Simulation Based Robust Design Considering Multiple Sources of Uncertainty." J Mec Des. 2013.
 
         """
-        batch_x = gen_batch_data(x, self.xi)
+        batch_x = gen_batch_data(x, self.xi) 
         pred = gp.predict(batch_x, return_std=True, grad=True) 
-        mu, std = pred.mu.mean(dim=1), pred.std.mean(dim=1)  
+        mu, std = pred.mu.mean(dim=1), pred.std.mean(dim=1) 
         z = (mu - fbest) / torch.clamp(std, min=self.min) 
         return (mu - fbest) * self.normal.cdf(z) + std * torch.exp(self.normal.log_prob(z)) 
-    
+
     def probability_of_feasibility_monte_carlo(self, x, gp, fbest):
         """
         P[g(x,xi)<0]  = '\'int Phi(-mu/std) p(xi)dxi
 
+        NOTE use with multiple constraints has not be tested (!)
+
         """
         batch_x = gen_batch_data(x, self.xi)
-        pred = gp.predict(batch_x, return_std=True, grad=True) # NOTE multiple constraints not tested         
-        mu, std = pred.posterior()
+        pred = gp.predict(batch_x, return_std=True, grad=True)         
+        mu, std = pred.posterior() 
         p = torch.distributions.Normal(mu, std).cdf(torch.tensor([0.0]).to(mu.device)) 
-        return p.mean(dim=1) - 1 + self.eps
+        return p.mean(dim=1) - 1 + self.eps 
     
     def mean_squared_error(self, xi, gp, fbest):
         """
