@@ -188,7 +188,7 @@ class Acquisition():
         """
         P[g(x,xi)<0]  = '\'int Phi(-mu/std) p(xi)dxi
 
-        NOTE use with multiple constraints has not be tested (!)
+        NOTE use with multiple constraints has not been implemented 
 
         """
         batch_x = gen_batch_data(x, self.xi)

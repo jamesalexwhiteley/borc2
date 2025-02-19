@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     iters = 2
     for i in range(iters): 
-        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.numpy()},  Optimal x : {borc.surrogate.xbest.numpy()}")  
+        print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.detach().numpy()},  Optimal x : {borc.surrogate.xbest.detach().numpy()}")  
         new_x, max_acq = borc.batch_optimize_acq(iters=100)   
         plot1d(problem, borc) 
         borc.step(new_x=new_x) 

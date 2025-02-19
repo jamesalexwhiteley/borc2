@@ -108,12 +108,13 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     ax1.plot(x.cpu(), acq_x.cpu(), label=r'Acquisition function', color='#1f3d7a', linewidth=2)
     ax1.set_xlabel(r'$x$', fontsize=12)
     ax1.set_ylabel(r'$\alpha(x)$', fontsize=12)
-    ax1.scatter(point_x[0].cpu(), borc.eval_acquisition(point_x[0].unsqueeze(0)).detach().cpu(), color='m', s=25, marker='o', label='Max acquisition', zorder=10) 
+    # ax1.scatter(point_x[0].cpu(), borc.eval_acquisition(point_x[0].unsqueeze(0)).detach().cpu(), color='m', s=25, marker='o', label='Max acquisition', zorder=10) 
+    ax1.scatter(point_x[0].cpu(), borc.eval_acquisition(point_x[0].unsqueeze(0)).detach().cpu(), color='magenta', label='Max Acquisition', s=100, marker='*', edgecolors='k', zorder=10)
     ax1.axvline(point_x[0].cpu(), color='gray', linestyle='--', linewidth=1) 
     ax1.legend(loc='lower right', frameon=True)
     # xi insert 
     ax_inset = inset_axes(ax1, width="40%", height="40%", loc='upper left') 
-    borc.acquisition = Acquisition(f="eWMSE", x=point_x[0].unsqueeze(0), dist=problem.param_dist)
+    borc.acquisition = Acquisition(f="eMSE", x=point_x[0].unsqueeze(0), dist=problem.param_dist)
     acq_xi = borc.eval_acquisition(xi.unsqueeze(1)).detach()
     ax_inset.plot(xi.cpu(), acq_xi.cpu(), label=r'Acquisition $\alpha(\xi)$', color='#1f3d7a', linewidth=2)
     ax_inset.set_xlabel(r'$\xi$', fontsize=10)
@@ -121,7 +122,8 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     ax_inset.tick_params(axis='both', labelsize=8)
     ax_inset.yaxis.tick_right()
     ax_inset.yaxis.set_label_position("right")
-    ax_inset.scatter(point_xi[0].cpu(), borc.eval_acquisition(point_xi[0].unsqueeze(0)).detach().cpu(), color='m', marker='.', label='Max acquisition', zorder=10) 
+    # ax_inset.scatter(point_xi[0].cpu(), borc.eval_acquisition(point_xi[0].unsqueeze(0)).detach().cpu(), color='m', marker='.', label='Max acquisition', zorder=10) 
+    ax_inset.scatter(point_xi[0].cpu(), borc.eval_acquisition(point_xi[0].unsqueeze(0)).detach().cpu(), color='magenta', label='Max Acquisition', s=50, marker='*', edgecolors='k', zorder=10)
     ax_inset.axvline(point_xi[0].cpu(), color='gray', linestyle='--', linewidth=1) 
     plt.savefig(os.path.join(output_dir, f'analytic_acquisition_0.png'), dpi=600)
     plt.show()
@@ -172,11 +174,12 @@ def bayesopt(ninitial, iters):
         borc.acquisition = Acquisition(f="eEI", g="ePF", xi=xi) 
         new_x, max_acq_x = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_x=True, lr=0.2) 
  
-        borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
-        new_xi, max_acq_xi = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_xi=True, lr=0.01)
+        borc.acquisition = Acquisition(f="eMSE", x=new_x, dist=problem.param_dist)  
+        new_xi, max_acq_xi = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_xi=True, lr=0.1)
+        
         points1.append(torch.cat([new_x, new_xi], dim=1)) 
-        # borc.step(new_x=torch.cat([new_x, new_xi], dim=1)) 
-        # print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
+        borc.step(new_x=torch.cat([new_x, new_xi], dim=1)) 
+        print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
 
         plotfig(model, problem, borc, points0, torch.cat(points1), torch.tensor((new_x, max_acq_x)), torch.tensor((new_xi, max_acq_xi)))
 
@@ -184,5 +187,5 @@ def bayesopt(ninitial, iters):
 
 
 if __name__ == "__main__": 
-    ninitial, iters = 10, 1 
+    ninitial, iters = 5, 10
     xopt, res = bayesopt(ninitial, iters) 
