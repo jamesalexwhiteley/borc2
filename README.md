@@ -23,17 +23,17 @@ borc2.0 is a framework for structural optimization under uncertainty that combin
 ## Visual Components
 The optimization process can be visualized through four plots:
 
-1. **Analytic Function** (`analytic_f.png`)
+1. **Analytic Function**
    - Shows the true underlying function surface
 
-2. **Surrogate Approximation** (`analytic_fhat.png`)
+2. **Surrogate Approximation**
    - Displays the GP surrogate's prediction of the function
 
-3. **Posterior Distribution** (`analytic_posterior.png`)
+3. **Posterior Distribution** 
    - Shows the uncertainty in the GP prediction of the optimization problem 
 
-4. **Acquisition Surface** (`analytic_acquisition.png`)
-   - Visualizes the acquisition function values
+4. **Acquisition Function** 
+   - Visualizes the acquisition function 
 
 <div align="center">
   <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 800px;">
