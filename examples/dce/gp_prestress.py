@@ -11,6 +11,7 @@ from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import MultivariateNormal
 from borc2.utilities import tic, toc 
+from borc2.gp import HomoscedasticGP, GPModelIO
 
 from static_fem.models import Frame # type:ignore 
 from pystressed.models import SectionForce 
@@ -25,51 +26,6 @@ plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
-
-def plotcontour(problem, borc):
-
-    output_dir = 'figures'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    output_path = os.path.join(output_dir, f'contour_prestress.png')
-
-    fig = plt.figure(figsize=(7, 6))
-
-    # tic() 
-    # steps = 50
-    # x = torch.linspace(0.1, 1, steps)
-    # y = torch.linspace(0.1, 1, steps)
-    # X, Y = torch.meshgrid(x, y, indexing='ij')
-    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(2e1), output=False, return_vals=True) for x in xpts]) # list comprehension
-    # MU = -torch.tensor(mu).view(X.shape).detach()
-    # PI = torch.tensor(prob).view(X.shape).detach()
-    # toc() 
-
-    tic() 
-    steps = 10 
-    x = torch.linspace(0.1, 1, steps) 
-    y = torch.linspace(0.1, 1, steps) 
-    X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
-    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
-    MU = -torch.tensor(mu).view(X.shape).detach()
-    PI = torch.tensor(prob).view(X.shape).detach()
-    toc()
-
-    proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
-    contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.2, 1.0, 5))
-    plt.clabel(contour_pi, inline=True, fontsize=8)
-    plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
-
-    plt.xlabel(r'$x_1$')
-    plt.ylabel(r'$x_2$')
-    plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="upper left")
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=600)
-    plt.show()
-
 
 class Model():
     def __call__(self, x): 
@@ -160,7 +116,8 @@ class Model():
             service = SectionForce(A=A, fc=fc, ft=ft, Ztop=Ztop, Zbot=Zbot, Mmax=Mmax, Mmin=Mmin, losses=losses) 
 
             # design  
-            P, _ = optimize_magnel(transfer=transfer, service=service, ebounds=ebounds, mode='min', output=False) 
+            P, e = optimize_magnel(transfer=transfer, service=service, ebounds=ebounds, mode='min', output=False) 
+            
             self.m[i] = P 
 
     def f(self): 
@@ -175,7 +132,7 @@ class Model():
         # P >> 0 for feasible (e, P), hence g < 0 for feasible section 
         return -self.m.flatten() + 1 
 
-def bayesopt(ninitial, iters, n): 
+def gaussian_process(npoints): 
 
     base_folder = os.path.join(os.getcwd(), "models")
     os.makedirs(base_folder, exist_ok=True)
@@ -192,48 +149,31 @@ def bayesopt(ninitial, iters, n):
                         [        0.0,     0.7*1,    0.7*1,        1]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds, padding=0.1)
+    problem.set_bounds(bounds, padding=0.1) 
     problem.set_dist(dist)
     problem.add_model(model)
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    xi = problem.sample_xi(nsamples=int(2e2)).to(device)
-    surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
-    borc = Borc(surrogate, acquisition) 
-    borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="rand", max_acq=torch.tensor([0.0])) 
-    SurrogateIO.save(borc.surrogate, output_dir) 
-    # borc.surrogate = SurrogateIO.load(output_dir) 
+    train_x = problem.sample(nsamples=1000) # TODO get domain for each variable 
+    print(train_x)
+    problem.model(train_x)
+    train_y = problem.constraints()
 
-    # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
-    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    plotcontour(problem, borc)
+    steps = 10 
+    x = torch.linspace(0.1, 1, steps) # need padding here I think 
+    y = torch.linspace(0.1, 1, steps) 
+    X, Y = torch.meshgrid(x, y, indexing='ij')
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters) 
-    # for i in range(iters): 
+    # gp = HomoscedasticGP(train_x, train_y)
+    # gp.fit() 
+    # GPModelIO.save(gp, output_path_2)  # save 
+    # gp = GPModelIO.load(output_path_2) # load TODO save should be easy? 
 
-    #     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    #     # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
-    #     # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
-
-    #     # new_x <- random search 
-    #     borc.step(new_x=problem.sample()) 
-
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
-
-    # return xopt, res 
-    return None, None 
-
+    # TODO just reproduce contour here with gp class rather than with borc class 
 
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 800, 1, 1 
-    xopt, res = bayesopt(ninitial, iters, n) 
+    npoints = 100 
+    gaussian_process(npoints) 

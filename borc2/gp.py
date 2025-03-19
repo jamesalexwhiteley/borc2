@@ -137,7 +137,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         self.likelihood = likelihood
         self.mean_module = gpytorch.means.ZeroMean()
         self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=train_x.size(1))) # use seperate hyperparameter for each dimension 
-        # self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=train_x.size(1))) 
+        # self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=train_x.size(1))) 
 
     def forward(self, x): 
         """ 
@@ -183,9 +183,6 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         """
         best_state_dict, min_loss = None, torch.tensor(float('inf'))
         for _ in range(self.nstarts):
-
-            # print(self.train_x)
-            # print(self.train_y)
 
             self.initialize()
             optimizer = torch.optim.Adam(self.parameters(), lr=0.1)  
@@ -261,7 +258,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         if self.normalize_x:
             x = self.scaler_x.normalize(x)
 
-        with gpytorch.settings.max_preconditioner_size(100): ######################################## NOTE (!)
+        with gpytorch.settings.max_preconditioner_size(100): 
             with gpytorch.settings.cholesky_jitter(self.jitter):
                 if grad:
                     with gpytorch.settings.fast_pred_var():
@@ -338,7 +335,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         except Exception as e:
             print(f"Warning: GP retraining failed. Using existing hyperparameters. Error: {e}")
             with torch.no_grad():
-                super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)             ##################### NOTE keep this ?
+                super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)           
                 self._clear_cache()
                 self.eval()
 

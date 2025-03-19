@@ -9,6 +9,7 @@ from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
 from borc2.probability import DiscreteJoint
+from borc2.utilities import tic, toc 
 
 plt.rcParams['font.size'] = 12
 plt.rcParams['font.family'] = 'sans-serif'
@@ -37,14 +38,22 @@ def plotcontour(problem, borc):
     # PI = prob[0].view(X.shape).detach()
 
     # surrogate
-    steps = 100
-    x = torch.linspace(0.1, 1, steps)
-    y = torch.linspace(0.1, 1, steps)
+    steps = 500
+    x = torch.linspace(0, 1, steps)
+    y = torch.linspace(0, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
     xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
-    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension
+
+    tic()
+    # list comprehension 
+    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(2e2), output=False, return_vals=True) for x in xpts]) 
     MU = torch.tensor(mu).view(X.shape).detach()
     PI = torch.tensor(prob).view(X.shape).detach()
+    # vector input 
+    # mu, prob = borc.rbo(xpts, nsamples=int(2e2), output=False, return_vals=True) 
+    # MU = mu.view(X.shape).detach().cpu()
+    # PI = prob[0].view(X.shape).detach().cpu()
+    toc()
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
@@ -54,6 +63,8 @@ def plotcontour(problem, borc):
 
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
     # plt.legend([scatter, proxy], ['Optimal x', r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
     plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="lower left")
     plt.tight_layout()
@@ -62,7 +73,9 @@ def plotcontour(problem, borc):
 
 def branin_williams(x):
     """
-    Williams, Brian Jonathan. Sequential design of computer experiments to minimize integrated response functions. The Ohio State University, 2000.
+    Williams, Brian Jonathan. 
+    Sequential design of computer experiments to minimize integrated response functions. 
+    Ohio State University, 2000.
     
     Parameters
     ----------
@@ -121,9 +134,9 @@ def bayesopt(ninitial, iters, n):
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    # borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
-    # SurrogateIO.save(borc.surrogate, output_dir) 
-    borc.surrogate = SurrogateIO.load(output_dir) 
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.0, 1.0, steps=21), torch.linspace(0.0, 1.0, steps=21)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(5e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0, 0.7] 
@@ -148,5 +161,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 500, 10, 1 
+    ninitial, iters, n = 100, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

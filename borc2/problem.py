@@ -15,19 +15,38 @@ class Problem():
         self.param_bounds = None 
         self.param_dist = None 
 
-    def set_bounds(self, param_bounds):
+    # def set_bounds(self, param_bounds):
+    #     """ 
+    #     Set bounds on deterministic parameters 
+
+    #     Parameters
+    #     ----------
+    #     param_bounds : dict of {str : tuple}
+    #         parameter name and associated upper and lower bound 
+
+    #     """ 
+    #     for key in param_bounds:
+    #         param_bounds[key] = torch.tensor(param_bounds[key]) # convert dict values to torch.tensor 
+    #     self.param_bounds = param_bounds 
+
+    def set_bounds(self, param_bounds, padding=0.2):
         """ 
-        Set bounds on deterministic parameters 
+        Set bounds on deterministic parameters  
 
         Parameters
         ----------
         param_bounds : dict of {str : tuple}
             parameter name and associated upper and lower bound 
-
         """ 
-        for key in param_bounds:
-            param_bounds[key] = torch.tensor(param_bounds[key]) # convert dict values to torch.tensor 
-        self.param_bounds = param_bounds 
+        padded_bounds = {}
+        for key, (lower, upper) in param_bounds.items():
+            range_val = upper - lower
+            padding = padding * range_val
+            padded_lower = lower - padding
+            padded_upper = upper + padding
+            padded_bounds[key] = torch.tensor((padded_lower, padded_upper))
+        
+        self.param_bounds = padded_bounds
 
     def set_dist(self, param_dist): 
         """ 

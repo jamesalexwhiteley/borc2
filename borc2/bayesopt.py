@@ -236,22 +236,9 @@ class Borc():
             g2 = torch.sqrt(pi.var(dim=1, unbiased=True) / nsamples).unsqueeze(0) 
             # g1 = (torch.sum(g_mu <= 0, dim=1) / nsamples).unsqueeze(0) 
             # g2 = (g1 * (1 - g1)) / nsamples
-            # print(g1)
-            # print(g2)
-            # indicator_samples = (g_mu <= 0).float() 
-            # g1 = indicator_samples.mean(dim=1).unsqueeze(0)
-            # g2 = indicator_samples.var(dim=1, unbiased=True).unsqueeze(0) / nsamples
-            # print(g1) 
-            # print(g2) 
         else: 
             g1 = [] 
             g2 = [] 
-
-        if output:
-            print(f"x = {list(x.detach().cpu())}")
-            print(f"E[f(x,xi)] = {mu}")
-            for i, p in enumerate(pi):
-                print(f"P[g_{i+1}(x,xi)<0] = {p}")
 
         if return_vals:
             return f1, [p for p in g1]

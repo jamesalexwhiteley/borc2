@@ -83,7 +83,7 @@ def plot1d(problem, borc):
 
     x = x_tensor.squeeze(1).cpu().detach().numpy()
     y = y.cpu().detach().numpy()
-    ax1.plot(x, y, label='Objective Function', color='k', linestyle='-.', linewidth=1.5)
+    ax1.plot(x, y, label='Objective Function', color='k', linestyle='-', linewidth=1)
 
     # GP Predictions
     pred = borc.surrogate.predict_objectives(x_tensor.to(device), return_std=True, grad=False)[0]
@@ -91,18 +91,17 @@ def plot1d(problem, borc):
     mu, std = pred.mu, pred.std
     low, high = mu - 2 * std, mu + 2 * std 
 
-    ax1.plot(x, mu, color='blue', linestyle='-', linewidth=2)
-    ax1.fill_between(x, low, high, where=(high > low), interpolate=True, color='blue', alpha=0.1, label=r'GP $\mu \pm 2\sigma$')
-    ax1.plot(x, low, 'b--', linewidth=1)
-    ax1.plot(x, high, 'b--', linewidth=1)
+    ax1.plot(x, mu, color='b', linestyle='-', linewidth=2, label=r'GP $\mu$', alpha=0.6)
+    ax1.fill_between(x, low, high, where=(high > low), interpolate=True, color='b', alpha=0.05, label=r'GP $\mu \pm 2\sigma$')
+    # ax1.plot(x, low, color='b', linestyle='--', linewidth=1)
+    # ax1.plot(x, high, color='b', linestyle='--', linewidth=1)
 
     # training points
     gp = borc.surrogate.objective_gps[0]
     train_x, train_y = gp.get_training_data(device='cpu')
-    ax1.scatter(train_x.flatten(), train_y.flatten(), color='m', label=f'{len(train_x)} Training Points', marker='o', s=35, zorder=5)
+    ax1.scatter(train_x.flatten(), train_y.flatten(), label=f'{len(train_x)} Training Points', s=75, marker='.', color='red', edgecolors='black', zorder=5)
     ax1.set_ylabel(r'$f(x)$', fontsize=14)
-    ax1.set_title('Gaussian Process', fontsize=16)
-
+    # ax1.set_title('Gaussian Process', fontsize=16)
     ax1.legend(loc='upper left', frameon=True, shadow=True)
 
     # Acquisition function 
@@ -116,23 +115,16 @@ def plot1d(problem, borc):
 
     ax2.set_xlabel(r'$x$', fontsize=14)
     ax2.set_ylabel(r'$\alpha(x)$', fontsize=14)
-    ax2.set_title('Acquisition Function', fontsize=16)
-
+    # ax2.set_title('Acquisition Function', fontsize=16)
     ax2.legend(loc='upper left', frameon=True, shadow=True)
 
-    # annotate maximum acquisition point
+    # maximum acquisition point
     ax2.annotate('Maximum Acquisition',
                 xy=(new_x, max_acq),
                 xytext=(new_x + (x[-1]-x[0])*0.05, max_acq + (a.max()-a.min())*0.1),
                 arrowprops=dict(facecolor='magenta', arrowstyle='->', linewidth=2),
                 fontsize=12,
                 color='magenta')
-
-    # tick parameters 
-    for ax in [ax1, ax2]:
-        ax.tick_params(axis='both', which='major', length=6, width=2)
-        ax.tick_params(axis='both', which='minor', length=3, width=1)
-        ax.minorticks_on()
 
     plt.savefig('bayesopt.png', dpi=600, bbox_inches='tight')  
     plt.show()
@@ -158,9 +150,9 @@ if __name__ == "__main__":
     acquisition = Acquisition(f="PI")
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device)
-    borc.initialize(nsamples=5, sample_method="lhs") 
+    borc.initialize(nsamples=4, sample_method="lhs") 
 
-    iters = 1 
+    iters = 2 
     for i in range(iters): 
         print(f"Iter: {i + 1}/{iters} | Max Objective: {borc.surrogate.fbest.cpu()},  Optimal x : {borc.surrogate.xbest.cpu()}") 
         new_x, max_acq = borc.batch_optimize_acq(iters=20, nstarts=10) 
