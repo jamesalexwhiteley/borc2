@@ -192,11 +192,11 @@ def bayesopt(ninitial, iters, n):
                         [        0.0,     0.7*1,    0.7*1,        1]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds, padding=0.1)
-    problem.set_dist(dist)
-    problem.add_model(model)
-    problem.add_objectives([model.f])
-    problem.add_constraints([model.g])
+    problem.set_bounds(bounds, padding=0.1) 
+    problem.set_dist(dist) 
+    problem.add_model(model) 
+    problem.add_objectives([model.f]) 
+    problem.add_constraints([model.g]) 
 
     xi = problem.sample_xi(nsamples=int(2e2)).to(device)
     surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 

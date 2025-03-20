@@ -6,9 +6,6 @@ import numpy as np
 import math 
 
 from borc2.problem import Problem 
-from borc2.surrogate import Surrogate, SurrogateIO
-from borc2.acquisition import Acquisition
-from borc2.bayesopt import Borc
 from borc2.probability import MultivariateNormal
 from borc2.utilities import tic, toc 
 from borc2.gp import HomoscedasticGP, GPModelIO
@@ -26,6 +23,60 @@ plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
+
+def plotcontour2d(problem, gp1, gp2):  
+    
+    base_folder = os.path.join(os.getcwd(), "figures")
+    os.makedirs(base_folder, exist_ok=True)
+    output_path = os.path.join(base_folder, "contour_prestress")
+
+    plt.figure(figsize=(7, 6))
+
+    steps = 200
+    x = torch.linspace(0.1, 1, steps)
+    y = torch.linspace(0.1, 1, steps)
+    X, Y = torch.meshgrid(x, y, indexing='ij')
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
+
+    nsamples=int(5e3)
+    pts, _ = problem.gen_batch_data(xpts, nsamples=nsamples, fixed_base_samples=True, method="lhs") 
+
+    mu, pi = torch.zeros(steps**2), torch.zeros(steps**2)
+    # use list (vector expression will run into memory issues)
+    for i, pt in enumerate(pts): 
+
+        pred1 = gp1.predict(pt, return_std=False)
+        mu[i] = torch.mean(pred1.mu)
+
+        pred2 = gp2.predict(pt, return_std=False)
+        pi[i] = (torch.sum(pred2.mu <= 0) / nsamples).unsqueeze(0) 
+
+    MU = - mu.reshape(X.shape)
+    PI =   pi.reshape(X.shape)
+
+    # tic() 
+    # steps = 50
+    # x = torch.linspace(0.1, 1, steps)
+    # y = torch.linspace(0.1, 1, steps)
+    # X, Y = torch.meshgrid(x, y, indexing='ij')
+    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
+    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(2e1), output=False, return_vals=True) for x in xpts]) # list comprehension
+    # MU = -torch.tensor(mu).view(X.shape).detach()
+    # PI = torch.tensor(prob).view(X.shape).detach()
+    # toc() 
+
+    proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
+    contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.5, 1.0, 5))
+    plt.clabel(contour_pi, inline=True, fontsize=8)
+    plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
+
+    plt.xlabel(r'$x_1$')
+    plt.ylabel(r'$x_2$')
+    plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="upper left")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=600)
+    plt.show()
 
 class Model():
     def __call__(self, x): 
@@ -115,8 +166,8 @@ class Model():
             ebounds = [0, (h/2 - 0.1) * 1e3] # mm 
             service = SectionForce(A=A, fc=fc, ft=ft, Ztop=Ztop, Zbot=Zbot, Mmax=Mmax, Mmin=Mmin, losses=losses) 
 
-            # design  
-            P, e = optimize_magnel(transfer=transfer, service=service, ebounds=ebounds, mode='min', output=False) 
+            # design 
+            P, _ = optimize_magnel(transfer=transfer, service=service, ebounds=ebounds, mode='min', output=False) 
             
             self.m[i] = P 
 
@@ -136,7 +187,8 @@ def gaussian_process(npoints):
 
     base_folder = os.path.join(os.getcwd(), "models")
     os.makedirs(base_folder, exist_ok=True)
-    output_dir  = os.path.join(base_folder, "prestress_rs")
+    output_path_1 = os.path.join(base_folder, "gp_prestress_1")
+    output_path_2 = os.path.join(base_folder, "gp_prestress_2")
 
     problem = Problem()
     model = Model()
@@ -155,25 +207,26 @@ def gaussian_process(npoints):
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    train_x = problem.sample(nsamples=1000) # TODO get domain for each variable 
-    print(train_x)
+    train_x = problem.sample(nsamples=npoints, method='rand')
     problem.model(train_x)
-    train_y = problem.constraints()
+    train_f = problem.objectives().squeeze(1)
+    train_g = problem.constraints().squeeze(1)
 
-    steps = 10 
-    x = torch.linspace(0.1, 1, steps) # need padding here I think 
-    y = torch.linspace(0.1, 1, steps) 
-    X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+    # # objective GP
+    # gp1 = HomoscedasticGP(train_x, train_f) 
+    # gp1.fit() 
+    # GPModelIO.save(gp1, output_path_1) 
 
-    # gp = HomoscedasticGP(train_x, train_y)
-    # gp.fit() 
-    # GPModelIO.save(gp, output_path_2)  # save 
-    # gp = GPModelIO.load(output_path_2) # load TODO save should be easy? 
+    # # constraint GP
+    # gp2 = HomoscedasticGP(train_x, train_g) 
+    # gp2.fit() 
+    # GPModelIO.save(gp2, output_path_2)   
 
-    # TODO just reproduce contour here with gp class rather than with borc class 
+    gp1 = GPModelIO.load(output_path_1)  
+    gp2 = GPModelIO.load(output_path_2) 
+    
+    plotcontour2d(problem, gp1, gp2)
 
 if __name__ == "__main__": 
-
-    npoints = 100 
+    npoints = 500 
     gaussian_process(npoints) 

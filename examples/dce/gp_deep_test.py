@@ -77,7 +77,7 @@ def f(x):
 # torch.manual_seed(0)
 
 # Generate train data
-n_train = 20
+n_train = 100
 train_x = torch.linspace(-1, 1, n_train).unsqueeze(-1)
 train_y = f(train_x) + 0.1 * torch.randn_like(train_x)
 
@@ -136,7 +136,7 @@ with torch.no_grad(), gpytorch.settings.num_likelihood_samples(num_samples):
 # Plot results
 plt.figure(figsize=(10, 6))
 plt.plot(test_x.numpy(), test_y.numpy(), 'k', label='True Function')
-plt.plot(train_x.numpy(), train_y.numpy(), 'ko', label='Training Data')
+# plt.plot(train_x.numpy(), train_y.numpy(), 'ko', label='Training Data')
 plt.plot(test_x.numpy(), mean.numpy(), 'b', label='Predicted Mean')
 plt.fill_between(test_x.numpy().flatten(), lower.numpy().flatten(), upper.numpy().flatten(), alpha=0.3, color='b', label='Confidence Region')
 plt.legend()

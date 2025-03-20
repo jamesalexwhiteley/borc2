@@ -120,6 +120,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         self.nstarts = nstarts  
         self.fbest = torch.max(train_y) 
         self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
+        self.device = 'cpu'
 
         if self.normalize_x:
             self.scaler_x = NormalScaler(train_x, dim=0) 
@@ -361,7 +362,7 @@ class NoiselessGP(HomoscedasticGP):
 class HeteroscedasticGP(HomoscedasticGP):
     def __init__(self, 
                 train_x, 
-                train_y,
+                train_y, 
                 noise, # noise variance 
                 normalize_x=True,
                 standardize_y=True, 

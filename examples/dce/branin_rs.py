@@ -161,5 +161,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 100, 10, 1 
+    ninitial, iters, n = 50, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

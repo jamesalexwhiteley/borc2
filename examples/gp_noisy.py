@@ -73,7 +73,7 @@ if __name__ == "__main__":
     gp = GPModelIO.load(output_path_1) # load 
     pred = gp.predict(x.unsqueeze(-1), return_std=True) 
     low, high = pred.mu - 2 * pred.std, pred.mu + 2 * pred.std 
-    plot1d(x, y, pred.mu, low, high, train_x, train_y) 
+    # plot1d(x, y, pred.mu, low, high, train_x, train_y) 
 
     # 2d test function   
     def himmelblau(x, y):
@@ -87,6 +87,8 @@ if __name__ == "__main__":
     nsamples = 40
     ind = torch.randperm(int(len(x)))[:nsamples]
     train_x, train_y = x[ind], y[ind]
+    print(train_x)
+    print(x)
 
     gp = HomoscedasticGP(train_x, train_y)
     gp.fit() 
@@ -94,6 +96,6 @@ if __name__ == "__main__":
     gp = GPModelIO.load(output_path_2) # load 
     pred = gp.predict(x, return_std=True)
     low, high = pred.mu - 2 * pred.std, pred.mu + 2 * pred.std
-    plot2d(x, y, pred.mu, low, high, train_x, train_y) 
+    # plot2d(x, y, pred.mu, low, high, train_x, train_y) 
 
 
