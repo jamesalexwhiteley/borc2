@@ -200,14 +200,14 @@ class DeepGP:
             for epoch in range(self.ntraining):
                 optimizer.zero_grad()
                 
-                # Forward 
+                # Forward   
                 with gpytorch.settings.num_likelihood_samples(self.num_samples):
                     output = self.model(self.train_x)
                     loss = -mll(output, self.train_y)
                     loss.backward()
                     optimizer.step()
                 
-                if (epoch + 1) % 100 == 0:
+                if (epoch + 1) % 1 == 0:
                     print(f'Epoch {epoch+1}/{self.ntraining} - Loss: {loss.item():.4f}')
             
             final_loss = loss.item()

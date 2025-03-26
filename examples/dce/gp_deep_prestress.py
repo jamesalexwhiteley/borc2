@@ -31,47 +31,36 @@ def plotcontour2d(problem, gp1, gp2, nsamples, steps):
     os.makedirs(base_folder, exist_ok=True)
     output_path = os.path.join(base_folder, "contour_prestress_")
 
+    # TODO steps=500, nsamples=int(2e3) 
+    tic()
     plt.figure(figsize=(7, 6))
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
     xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-
-    pts, _ = problem.gen_batch_data(xpts, nsamples=nsamples, fixed_base_samples=True, method="rand") 
+    pts, _ = problem.gen_batch_data(xpts, nsamples=nsamples, fixed_base_samples=True, method="lhs") 
     pts = pts.to(device)
-
     mu, pi = torch.zeros(steps**2), torch.zeros(steps**2)
     # use list (vector expression will run into memory issues)
     for i, pt in enumerate(pts): 
-
         pred1 = gp1.predict(pt, return_std=False)
         mu[i] = torch.mean(pred1.mu)
-
         pred2 = gp2.predict(pt, return_std=False)
         pi[i] = (torch.sum(pred2.mu <= 0) / nsamples).unsqueeze(0)
-
     MU = - mu.reshape(X.shape)
     PI =   pi.reshape(X.shape)
-
-    # tic() 
-    # steps = 50
-    # x = torch.linspace(0.1, 1, steps)
-    # y = torch.linspace(0.1, 1, steps)
-    # X, Y = torch.meshgrid(x, y, indexing='ij')
-    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(2e1), output=False, return_vals=True) for x in xpts]) # list comprehension
-    # MU = -torch.tensor(mu).view(X.shape).detach()
-    # PI = torch.tensor(prob).view(X.shape).detach()
-    # toc() 
+    toc()
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.1, 1.0, 10))
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=[0.1, 0.3, 0.5])
     plt.clabel(contour_pi, inline=True, fontsize=8)
     plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='darkred', linewidths=2.5, levels=[0.9])
+    plt.clabel(contour_pi, inline=True, fontsize=8)
 
-    plt.xlabel(r'$x_1$')
-    plt.ylabel(r'$x_2$')
+    plt.xlabel(r'$b$ [m]')
+    plt.ylabel(r'$h$ [m]')
     plt.legend([proxy], [r'$\text{P}[\text{g}(x,\xi)\leq 0]$'], loc="upper left")
     plt.tight_layout()
     plt.savefig(output_path, dpi=600)
@@ -209,27 +198,27 @@ def gaussian_process():
     SMOKE_TEST = False   
     
     if SMOKE_TEST: 
-        npoints = 100
+        npoints = 40
         ntraining = 10 
-        steps = 2
-        nsamples = 10
+        steps = 100
+        nsamples = 1000 
     else: 
-        npoints = 7000
-        ntraining = 2000 
-        steps = 5
-        nsamples = int(1e2)
-
+        npoints = 7000  
+        ntraining = 4000  
+        steps = 50  
+        nsamples = int(4e3)  
+ 
     train_x = problem.sample(nsamples=npoints, method='rand')
     problem.model(train_x)
     train_f = problem.objectives().squeeze(1)
     train_g = problem.constraints().squeeze(1)
 
-    # # # objective GP
+    # # objective GP 
     # tic()
-    # # gp1 = DeepGP(train_x, train_f, ntraining=ntraining) 
-    # # gp1.cuda(device)
-    # # gp1.fit() 
-    # # GPModelIO.save(gp1, output_path_1) 
+    # gp1 = DeepGP(train_x, train_f, ntraining=ntraining) 
+    # gp1.cuda(device)
+    # gp1.fit() 
+    # GPModelIO.save(gp1, output_path_1) 
 
     # # constraint GP 
     # gp2 = DeepGP(train_x, train_g, ntraining=ntraining) 
