@@ -29,11 +29,11 @@ def plot_multistage_contours(problem, model, nsamples, steps):
 
     base_folder = os.path.join(os.getcwd(), "figures")
     os.makedirs(base_folder, exist_ok=True)
-    output_path = os.path.join(base_folder, "contour_prestress_multistage")
+    output_path = os.path.join(base_folder, "contour_prestress_m")
 
     plt.figure(figsize=(7, 6))
 
-    # TODO steps=500, nsamples=int(2e3) 
+    # TODO npoints=10000+, ntraining=2000+, steps=500, nsamples=int(2e3) 
     tic()
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
@@ -43,7 +43,7 @@ def plot_multistage_contours(problem, model, nsamples, steps):
     model.use_deep_gp = True 
     pts, _ = problem.gen_batch_data(xpts, nsamples=nsamples, fixed_base_samples=True, method="lhs") 
     pts = pts.to(device)
-    for i, pt in enumerate(pts): 
+    for i, pt in enumerate(pts):  
             model(pt)
             f_val = model.f()
             g_val = model.g()
@@ -310,16 +310,16 @@ def gaussian_process():
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    SMOKE_TEST = False          
+    SMOKE_TEST = False            
     
     if SMOKE_TEST: 
-        npoints = 10
-        ntraining = 5 
+        npoints = 20
+        ntraining = 10 
         steps = 5
-        nsamples = 100 
+        nsamples = 15 
     else: 
-        npoints = 7000 
-        ntraining = 5000 
+        npoints = 12500 
+        ntraining = 2000 
         steps = 500 
         nsamples = int(2e3) 
     

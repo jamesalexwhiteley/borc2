@@ -53,11 +53,11 @@ def plotcontour2d(problem, gp1, gp2, nsamples, steps):
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=[0.1, 0.3, 0.5])
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=[0.1, 0.5, 0.9])
     plt.clabel(contour_pi, inline=True, fontsize=8)
     plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
-    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='darkred', linewidths=2.5, levels=[0.9])
-    plt.clabel(contour_pi, inline=True, fontsize=8)
+    # contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='darkred', linewidths=2.5, levels=[0.9])
+    # plt.clabel(contour_pi, inline=True, fontsize=8)
 
     plt.xlabel(r'$b$ [m]')
     plt.ylabel(r'$h$ [m]')
