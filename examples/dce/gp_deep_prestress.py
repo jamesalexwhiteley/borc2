@@ -31,7 +31,6 @@ def plotcontour2d(problem, gp1, gp2, nsamples, steps):
     os.makedirs(base_folder, exist_ok=True)
     output_path = os.path.join(base_folder, "contour_prestress_")
 
-    # TODO steps=500, nsamples=int(2e3) 
     tic()
     plt.figure(figsize=(7, 6))
     x = torch.linspace(0.1, 1, steps)
@@ -198,15 +197,15 @@ def gaussian_process():
     SMOKE_TEST = False   
     
     if SMOKE_TEST: 
-        npoints = 40
+        npoints = 20 
         ntraining = 10 
-        steps = 100
-        nsamples = 1000 
+        steps = 10
+        nsamples = 100 
     else: 
-        npoints = 7000  
-        ntraining = 4000  
-        steps = 50  
-        nsamples = int(4e3)  
+        npoints = 5000  
+        ntraining = 2000  
+        steps = 500  
+        nsamples = int(2e3)  
  
     train_x = problem.sample(nsamples=npoints, method='rand')
     problem.model(train_x)

@@ -51,14 +51,14 @@ def plotcontour2d(problem, gp1, gp2):
     # PI =   pi.reshape(X.shape)
     # toc()
 
-    # TODO steps=50, nsamples=int(1e3)
+    # TODO steps=250, nsamples=int(1e3) 
     tic() 
-    steps = 10
+    steps = 100
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
     xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(2e3), output=False, return_vals=True) for x in xpts]) 
+    mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(5e2), output=False, return_vals=True) for x in xpts]) 
     MU = -torch.tensor(mu).view(X.shape).detach()
     PI = torch.tensor(prob).view(X.shape).detach()
     toc() 
@@ -109,8 +109,8 @@ class Model():
 
             # applied loads 
             R, W = 1.35 * 1500e3, 1.35 * 600e3 # N 
-            Rx = R * math.cos(math.radians(theta))  # N
-            Ry = R * math.sin(math.radians(theta))  # N        
+            Rx = R * math.cos(math.radians(theta % 360)) # N
+            Ry = R * math.sin(math.radians(theta % 360)) # N        
             V = -(W + Ry) # N 
             M = -(Rx * 21.3) + (Ry * (7.3/2 - 1)) + (W * 1) # Nm 
 

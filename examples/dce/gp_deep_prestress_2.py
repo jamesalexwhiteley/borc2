@@ -290,8 +290,8 @@ def gaussian_process():
     models_base_path = os.path.join(base_folder, "gp_deep_multistage")
     
     # For comparison, also train traditional full models
-    objective_path = os.path.join(base_folder, "gp_deep_objective")
-    constraint_path = os.path.join(base_folder, "gp_deep_constraint")
+    # objective_path = os.path.join(base_folder, "gp_deep_objective")
+    # constraint_path = os.path.join(base_folder, "gp_deep_constraint")
 
     problem = Problem()
     model = Model()  
@@ -310,7 +310,7 @@ def gaussian_process():
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    SMOKE_TEST = False            
+    SMOKE_TEST = False              
     
     if SMOKE_TEST: 
         npoints = 20
@@ -318,31 +318,31 @@ def gaussian_process():
         steps = 5
         nsamples = 15 
     else: 
-        npoints = 12500 
-        ntraining = 2000 
-        steps = 500 
+        npoints = 10000 
+        ntraining = 5000
+        steps = 100 
         nsamples = int(2e3) 
     
-    # # Ground truth 
-    # train_x = problem.sample(nsamples=npoints, method='lhs')
-    # print("Running original model for ground truth...")
-    # problem.model(train_x)
-    # train_f = problem.objectives().squeeze(1)
-    # train_g = problem.constraints().squeeze(1)
+    # Ground truth 
+    train_x = problem.sample(nsamples=npoints, method='lhs')
+    print("Running original model for ground truth...")
+    problem.model(train_x)
+    train_f = problem.objectives().squeeze(1)
+    train_g = problem.constraints().squeeze(1)
     
-    # # Get structural responses and prestress forces
-    # train_structural = model.structural_responses  # [Mservice, Mtransfer]
-    # train_prestress = model.m  # Prestress force P
+    # Get structural responses and prestress forces
+    train_structural = model.structural_responses  # [Mservice, Mtransfer]
+    train_prestress = model.m  # Prestress force P
     
-    # # Train the internal Deep GPs
-    # print("Training internal multi-stage Deep GPs...")
-    # model.train_internal_gps(
-    #     train_x=train_x, 
-    #     train_structural=train_structural, 
-    #     train_prestress=train_prestress,
-    #     ntraining=ntraining
-    # )
-    # model.save_gps(models_base_path)
+    # Train the internal Deep GPs
+    print("Training internal multi-stage Deep GPs...")
+    model.train_internal_gps(
+        train_x=train_x, 
+        train_structural=train_structural, 
+        train_prestress=train_prestress,
+        ntraining=ntraining
+    )
+    model.save_gps(models_base_path)
 
     # Load model
     model.load_gps(models_base_path)
