@@ -51,9 +51,10 @@ def plotcontour2d(problem, gp1, gp2):
     # PI =   pi.reshape(X.shape)
     # toc()
 
-    # TODO steps=250, nsamples=int(1e3) 
+    # TODO steps=100, nsamples=int(5e2) estimate 20 hours 
+    # TODO steps=50, nsamples=int(1e3) 
     tic() 
-    steps = 100
+    steps = 50 
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -180,7 +181,7 @@ class Model():
         return -(concrete + tendons + formwork)
         
     def g(self): 
-        # P >> 0 for feasible (e, P), hence g < 0 for feasible section 
+        # P >> 0 if feasible (e, P) else 0, and g < 0 indicates feasible section 
         return -self.m.flatten() + 1 
 
 def gaussian_process(npoints): 
