@@ -33,7 +33,8 @@ def plot_multistage_contours(problem, model, nsamples, steps):
 
     plt.figure(figsize=(7, 6))
 
-    # TODO npoints=10000+, ntraining=2000+, steps=500, nsamples=int(2e3) 
+    # TODO npoints=10000+, ntraining=2000, steps=500, nsamples=int(1e3) 2-layer deep architecture 
+    # TODO npoints=10000+, ntraining=2000, steps=500, nsamples=int(1e3) 3-layer deep architecture 
     tic()
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
@@ -115,9 +116,6 @@ class Model():
         prestress_inputs = torch.cat([train_x[:, :2], train_structural], dim=1)
 
         prestress_targets = train_prestress.squeeze(1)
-
-        print(prestress_inputs.shape)
-        print(prestress_targets.shape)
         
         print("Training prestress optimization Deep GP...")
         self.prestress_gp = DeepGP(prestress_inputs, prestress_targets, ntraining=ntraining)
@@ -318,14 +316,14 @@ def gaussian_process():
         steps = 5
         nsamples = 15 
     else: 
-        npoints = 10000 
-        ntraining = 5000
-        steps = 100 
-        nsamples = int(2e3) 
+        npoints = 1000
+        ntraining = 500
+        steps = 10
+        nsamples = int(1e2) 
     
     # Ground truth 
     train_x = problem.sample(nsamples=npoints, method='lhs')
-    print("Running original model for ground truth...")
+    print("Generating training data...")
     problem.model(train_x)
     train_f = problem.objectives().squeeze(1)
     train_g = problem.constraints().squeeze(1)
@@ -336,6 +334,7 @@ def gaussian_process():
     
     # Train the internal Deep GPs
     print("Training internal multi-stage Deep GPs...")
+    tic()
     model.train_internal_gps(
         train_x=train_x, 
         train_structural=train_structural, 
@@ -346,6 +345,7 @@ def gaussian_process():
 
     # Load model
     model.load_gps(models_base_path)
+    toc()
 
     # Plot multistage approach 
     plot_multistage_contours(problem, model, nsamples, steps)

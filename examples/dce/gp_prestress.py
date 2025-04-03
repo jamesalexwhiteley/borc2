@@ -51,10 +51,9 @@ def plotcontour2d(problem, gp1, gp2):
     # PI =   pi.reshape(X.shape)
     # toc()
 
-    # TODO steps=100, nsamples=int(5e2) estimate 20 hours 
-    # TODO steps=50, nsamples=int(1e3) 
+    # TODO steps=100, nsamples=int(1e3) 
     tic() 
-    steps = 50 
+    steps = 100 
     x = torch.linspace(0.1, 1, steps)
     y = torch.linspace(0.1, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')

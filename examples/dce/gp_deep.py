@@ -3,7 +3,7 @@ import gpytorch
 import warnings
 from gpytorch.models.deep_gps import DeepGPLayer, DeepGP as GPytorchDeepGP
 from gpytorch.means import ConstantMean
-from gpytorch.kernels import RBFKernel, ScaleKernel, MaternKernel
+from gpytorch.kernels import RBFKernel, ScaleKernel, MaternKernel, LinearKernel
 from gpytorch.variational import VariationalStrategy, CholeskyVariationalDistribution
 from gpytorch.mlls import DeepApproximateMLL, VariationalELBO
 from gpytorch.likelihoods import GaussianLikelihood
@@ -39,7 +39,7 @@ class Posterior():
 
 # Hidden layer for DeepGP
 class HiddenLayer(DeepGPLayer):
-    def __init__(self, input_dims, output_dims, num_inducing=128): # NOTE number of inducing points, e.g. 64, 128, 256 
+    def __init__(self, input_dims, output_dims, num_inducing=256): # NOTE number of inducing points, e.g. 64, 128, 256 
         if output_dims is None:
             inducing_points = torch.randn(num_inducing, input_dims)
             batch_shape = torch.Size([])
@@ -69,7 +69,7 @@ class HiddenLayer(DeepGPLayer):
 
         self.mean_module = ConstantMean(batch_shape=batch_shape)
         self.covar_module = ScaleKernel(
-            MaternKernel(nu=1.5, batch_shape=batch_shape, ard_num_dims=input_dims),
+            MaternKernel(nu=0.5, batch_shape=batch_shape, ard_num_dims=input_dims),
             batch_shape=batch_shape, ard_num_dims=None
         )
     
@@ -131,7 +131,7 @@ class DeepGP:
         self.fbest = torch.max(train_y) 
         self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
         self.device = 'cpu'
-        self.num_samples = 100 # NOTE number of monte carlo samples for variational inference 
+        self.num_samples = 500 # NOTE number of monte carlo samples for variational inference 
 
         if self.normalize_x:
             self.scaler_x = NormalScaler(train_x, dim=0) 
@@ -207,7 +207,7 @@ class DeepGP:
                     loss.backward()
                     optimizer.step()
                 
-                if (epoch + 1) % 1 == 0:
+                if (epoch + 1) % 100 == 0:
                     print(f'Epoch {epoch+1}/{self.ntraining} - Loss: {loss.item():.4f}')
             
             final_loss = loss.item()
