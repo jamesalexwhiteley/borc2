@@ -207,7 +207,7 @@ class DeepGP:
                     loss.backward()
                     optimizer.step()
                 
-                if (epoch + 1) % 100 == 0:
+                if (epoch + 1) % 1 == 0:
                     print(f'Epoch {epoch+1}/{self.ntraining} - Loss: {loss.item():.4f}')
             
             final_loss = loss.item()

@@ -316,8 +316,8 @@ def gaussian_process():
         steps = 5
         nsamples = 15 
     else: 
-        npoints = 1000
-        ntraining = 500
+        npoints = 10000
+        ntraining = 2000
         steps = 10
         nsamples = int(1e2) 
     
