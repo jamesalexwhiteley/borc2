@@ -84,23 +84,23 @@ class DeepGPModel(GPytorchDeepGP):
     def __init__(self, input_dims):
         super().__init__()
         
-        self.hidden_layer = HiddenLayer(input_dims=input_dims, output_dims=4)
-        self.output_layer = HiddenLayer(input_dims=self.hidden_layer.output_dims, output_dims=None)
+        # self.hidden_layer = HiddenLayer(input_dims=input_dims, output_dims=4)
+        # self.output_layer = HiddenLayer(input_dims=self.hidden_layer.output_dims, output_dims=None)
 
-        # self.hidden_layer1 = HiddenLayer(input_dims=input_dims, output_dims=8)
-        # self.hidden_layer2 = HiddenLayer(input_dims=8, output_dims=4)
-        # self.output_layer = HiddenLayer(input_dims=4, output_dims=None)
+        self.hidden_layer1 = HiddenLayer(input_dims=input_dims, output_dims=8)
+        self.hidden_layer2 = HiddenLayer(input_dims=8, output_dims=4)
+        self.output_layer = HiddenLayer(input_dims=4, output_dims=None)
         
         self.likelihood = GaussianLikelihood()
     
     def forward(self, inputs):
 
-        hidden_output = self.hidden_layer(inputs)
-        output = self.output_layer(hidden_output)
+        # hidden_output = self.hidden_layer(inputs)
+        # output = self.output_layer(hidden_output)
 
-        # hidden_output1 = self.hidden_layer1(inputs)
-        # hidden_output2 = self.hidden_layer2(hidden_output1)
-        # output = self.output_layer(hidden_output2)
+        hidden_output1 = self.hidden_layer1(inputs)
+        hidden_output2 = self.hidden_layer2(hidden_output1)
+        output = self.output_layer(hidden_output2)
         
         return output
 
