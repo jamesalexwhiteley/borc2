@@ -318,30 +318,31 @@ def gaussian_process():
     else: 
         npoints = 5000
         ntraining = 1000
-        steps = 10
-        nsamples = int(1e2) 
+        steps = 50
+        nsamples = int(2e2) 
     
-    # Ground truth 
-    train_x = problem.sample(nsamples=npoints, method='lhs')
-    print("Generating training data...")
-    problem.model(train_x)
-    train_f = problem.objectives().squeeze(1)
-    train_g = problem.constraints().squeeze(1)
     
-    # Get structural responses and prestress forces
-    train_structural = model.structural_responses  # [Mservice, Mtransfer]
-    train_prestress = model.m  # Prestress force P
+    # # Ground truth 
+    # train_x = problem.sample(nsamples=npoints, method='lhs')
+    # print("Generating training data...")
+    # problem.model(train_x)
+    # train_f = problem.objectives().squeeze(1)
+    # train_g = problem.constraints().squeeze(1)
     
-    # Train the internal Deep GPs
-    print("Training internal multi-stage Deep GPs...")
+    # # Get structural responses and prestress forces
+    # train_structural = model.structural_responses  # [Mservice, Mtransfer]
+    # train_prestress = model.m  # Prestress force P
+    
     tic()
-    model.train_internal_gps(
-        train_x=train_x, 
-        train_structural=train_structural, 
-        train_prestress=train_prestress,
-        ntraining=ntraining
-    )
-    model.save_gps(models_base_path)
+    # Train the internal Deep GPs
+    # print("Training internal multi-stage Deep GPs...")
+    # model.train_internal_gps(
+    #     train_x=train_x, 
+    #     train_structural=train_structural, 
+    #     train_prestress=train_prestress,
+    #     ntraining=ntraining
+    # )
+    # model.save_gps(models_base_path)
 
     # Load model
     model.load_gps(models_base_path)
