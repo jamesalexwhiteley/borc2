@@ -55,7 +55,7 @@ def bayesopt(ninitial, iters, n):
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0])) 
-    acq_iters=50, acq_starts=1 # NOTE 
+    acq_iters, acq_starts = 50, 1 # NOTE 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 

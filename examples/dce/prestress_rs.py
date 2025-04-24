@@ -35,31 +35,39 @@ def plotcontour(problem, borc):
 
     fig = plt.figure(figsize=(7, 6))
 
-    # tic() 
-    # steps = 50
-    # x = torch.linspace(0.1, 1, steps)
-    # y = torch.linspace(0.1, 1, steps)
-    # X, Y = torch.meshgrid(x, y, indexing='ij')
-    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1)
-    # mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(2e1), output=False, return_vals=True) for x in xpts]) # list comprehension
-    # MU = -torch.tensor(mu).view(X.shape).detach()
-    # PI = torch.tensor(prob).view(X.shape).detach()
-    # toc() 
-
+    # TODO steps=50 nsamples=5e3 estimate 50 hours 
     tic() 
-    steps = 10 
+    steps = 5 
     x = torch.linspace(0.1, 1, steps) 
     y = torch.linspace(0.1, 1, steps) 
-    X, Y = torch.meshgrid(x, y, indexing='ij')
-    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
-    mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
-    MU = -torch.tensor(mu).view(X.shape).detach()
-    PI = torch.tensor(prob).view(X.shape).detach()
-    toc()
+    X, Y = torch.meshgrid(x, y, indexing='ij') 
+    xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1) 
+    mu, prob = zip(*[problem.rbo(x.unsqueeze(0), nsamples=int(5e3), output=False, return_vals=True) for x in xpts]) # list comprehension 
+    MU = -torch.tensor(mu).view(X.shape).detach() 
+    PI = torch.tensor(prob).view(X.shape).detach() 
+    toc() 
+    # save and load 
+    mu_path, pi_path = os.path.join(output_dir, 'mu_values.pt'), os.path.join(output_dir, 'pi_values.pt') 
+    torch.save(MU, mu_path) 
+    torch.save(PI, pi_path) 
+    MU = torch.load(mu_path, weights_only=True) 
+    PI = torch.load(pi_path, weights_only=True) 
+
+    # tic() 
+    # steps = 10 
+    # x = torch.linspace(0.1, 1, steps) 
+    # y = torch.linspace(0.1, 1, steps) 
+    # X, Y = torch.meshgrid(x, y, indexing='ij')
+    # xpts = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+    # mu, prob = zip(*[borc.rbo(x.unsqueeze(0), nsamples=int(1e3), output=False, return_vals=True) for x in xpts]) # list comprehension
+    # MU = -torch.tensor(mu).view(X.shape).detach()
+    # PI = torch.tensor(prob).view(X.shape).detach()
+    # toc()
 
     proxy = Line2D([0], [0], color='black', lw=1.5, label=r'\text{P}$[g(x,\xi)<0] = 1-\epsilon$')
     contour_mu = plt.contourf(X.numpy(), Y.numpy(), MU.numpy(), cmap='PuBu')
-    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=torch.linspace(0.2, 1.0, 5))
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=[0.1, 0.5, 0.9]) 
+    contour_pi = plt.contour(X.numpy(), Y.numpy(), PI.numpy(), colors='black', linewidths=1, levels=[0.1, 0.5, 0.9])
     plt.clabel(contour_pi, inline=True, fontsize=8)
     plt.colorbar(contour_mu, shrink=0.8, pad=0.05)
 
@@ -125,15 +133,14 @@ class Model():
             frame.solve() 
             Mtransfer = frame.f[2][0]
 
-            # frame.show(figsize=(8, 4), 
-            #         member_id=True, 
-            #         node_id=False,
-            #         supports=True, 
-            #         nodal_forces=True, 
-            #         nodal_disp=False,
-            #         scale=100)
-            
-            # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
+            print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
+            frame.show(figsize=(8, 4), 
+                    member_id=True, 
+                    node_id=False,
+                    supports=True, 
+                    nodal_forces=True, 
+                    nodal_disp=False,
+                    scale=100)
 
             # @transfer 
             A = b * h * 1e6 # mm2 
@@ -205,7 +212,7 @@ def bayesopt(ninitial, iters, n):
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="rand", max_acq=torch.tensor([0.0])) 
     SurrogateIO.save(borc.surrogate, output_dir) 
-    # borc.surrogate = SurrogateIO.load(output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
@@ -235,5 +242,5 @@ def bayesopt(ninitial, iters, n):
 
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 800, 1, 1 
+    ninitial, iters, n = 500, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

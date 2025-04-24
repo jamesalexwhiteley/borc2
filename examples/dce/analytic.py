@@ -76,8 +76,8 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     mu_true, prob_true = problem.rbo(x.unsqueeze(1), nsamples=int(1e4), output=False, return_vals=True)
     opt_ind = torch.where(prob_true[0] > 0.95)[0][0]
     opt_true_x, opt_true_mu, opt_true_prob = x[opt_ind].cpu(), mu_true[opt_ind].cpu(), prob_true[0][opt_ind].cpu()
-    ax1.scatter(opt_true_x, opt_true_mu, label='Optimal Point', color='white', marker='*', s=100, edgecolor='blue', zorder=10)
-    ax1.axvline(x=opt_true_x, color='gray', linestyle='--', linewidth=1)
+    # ax1.scatter(opt_true_x, opt_true_mu, label='Optimal Point', color='white', marker='*', s=100, edgecolor='blue', zorder=10)
+    # ax1.axvline(x=opt_true_x, color='gray', linestyle='--', linewidth=1)
     ax1.plot(x.cpu(), mu_true.cpu(), label=r'True $\text{E}[f(x,\xi)]$', color='blue', linewidth=2)
     ax1.set_xlabel(r'$x$')
     ax1.set_ylabel(r'$\text{E}[f(x,\xi)]$', color='blue')
@@ -85,7 +85,7 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     mu_gp, mu2_gp, prob_gp, prob2_gp = borc.rbo(x.unsqueeze(1), nsamples=int(1e4), output=False, return_posterior=True)
     ax1.plot(x.cpu(), mu_gp.cpu(), label=r'GP Mean $\text{E}[f(x,\xi)]$', color='green', linestyle='--', linewidth=2)
     upper_bound, lower_bound = mu_gp.cpu() + 2 * mu2_gp.cpu(), mu_gp.cpu() - 2 * mu2_gp.cpu()
-    ax1.fill_between(x.cpu(), lower_bound, upper_bound, color='green', alpha=0.1, label=r'GP 90\% CI')
+    ax1.fill_between(x.cpu(), lower_bound, upper_bound, color='green', alpha=0.1, label=fr'GP $\pm$2$\sigma$')
     # probability 
     ax2 = ax1.twinx()
     ax2.scatter(opt_true_x, opt_true_prob, label=r'$\text{P}[g(x,\xi)\leq0]=0.95$', color='white', marker='o', s=50, edgecolor='red', zorder=10)
@@ -150,7 +150,7 @@ def bayesopt(ninitial, iters):
     cov = torch.tensor([[1.]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds)
+    problem.set_bounds(bounds, padding=0)
     problem.set_dist(dist)
     problem.add_model(model)
     problem.add_objectives([model.f])
@@ -187,5 +187,5 @@ def bayesopt(ninitial, iters):
 
 
 if __name__ == "__main__": 
-    ninitial, iters = 5, 10
+    ninitial, iters = 500, 10
     xopt, res = bayesopt(ninitial, iters) 
