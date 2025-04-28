@@ -37,7 +37,7 @@ def plotcontour(problem, borc):
 
     # TODO steps=50 nsamples=5e3 estimate 50 hours 
     tic() 
-    steps = 5 
+    steps = 50
     x = torch.linspace(0.1, 1, steps) 
     y = torch.linspace(0.1, 1, steps) 
     X, Y = torch.meshgrid(x, y, indexing='ij') 
@@ -125,6 +125,7 @@ class Model():
             frame.initialise() 
             frame.solve() 
             Mservice = frame.f[2][0]
+            # Mservice = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
             
             # @transfer 
             M = V = 0 
@@ -132,15 +133,16 @@ class Model():
             frame.initialise()
             frame.solve() 
             Mtransfer = frame.f[2][0]
+            # Mtransfer = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
 
-            print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
-            frame.show(figsize=(8, 4), 
-                    member_id=True, 
-                    node_id=False,
-                    supports=True, 
-                    nodal_forces=True, 
-                    nodal_disp=False,
-                    scale=100)
+            # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
+            # frame.show(figsize=(8, 4), 
+            #         member_id=True, 
+            #         node_id=False,
+            #         supports=True, 
+            #         nodal_forces=True, 
+            #         nodal_disp=False,
+            #         scale=100)
 
             # @transfer 
             A = b * h * 1e6 # mm2 
