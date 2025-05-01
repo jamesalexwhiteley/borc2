@@ -124,16 +124,14 @@ class Model():
             frame.add_loads(loads=[[0, V0, M0], [0, V1, M1], [0, V+V2, M+M2]], nodes=[0, 1, 2]) 
             frame.initialise() 
             frame.solve() 
-            Mservice = frame.f[2][0]
-            # Mservice = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
+            Mservice = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
             
             # @transfer 
             M = V = 0 
             frame.add_loads(loads=[[0, V0, M0], [0, V1, M1], [0, V+V2, M+M2]], nodes=[0, 1, 2]) 
             frame.initialise()
             frame.solve() 
-            Mtransfer = frame.f[2][0]
-            # Mtransfer = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
+            Mtransfer = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
 
             # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
             # frame.show(figsize=(8, 4), 
