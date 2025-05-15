@@ -12,9 +12,17 @@ from borc2.bayesopt import Borc
 from borc2.probability import MultivariateNormal
 from borc2.utilities import tic, toc 
 
-from static_fem.models import Frame # type:ignore 
-from pystressed.models import SectionForce 
-from pystressed.servicability import plot_magnel, optimize_magnel, optimize_and_plot_magnel 
+# from static_fem.models import Frame # type:ignore 
+# from pystressed.models import SectionForce 
+# from pystressed.servicability import plot_magnel, optimize_magnel, optimize_and_plot_magnel 
+
+from pybeamnlfea.model.frame import Frame # type:ignore
+from pybeamnlfea.model.material import LinearElastic # type:ignore
+from pybeamnlfea.model.section import Section # type:ignore
+from pybeamnlfea.model.element import ThinWalledBeamElement # type:ignore
+from pybeamnlfea.model.boundary import BoundaryCondition # type:ignore
+from pybeamnlfea.model.load import NodalLoad # type:ignore 
+import numpy as np 
 
 import warnings
 warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try another solved*")  
@@ -78,7 +86,6 @@ def plotcontour(problem, borc):
     plt.savefig(output_path, dpi=600)
     plt.show()
 
-
 class Model():
     def __call__(self, x): 
 
@@ -88,89 +95,86 @@ class Model():
         # models run sequentially
         for i, (b, h, theta, k_a, k_theta_a, k_b) in enumerate(self.x):  
 
-            k_a, k_theta_a, k_b = 1e8 * k_a, 1e10 * k_theta_a, 1e8 * k_b 
+            k_1, k_1_theta, k_2 = 1e8 * k_a, 1e10 * k_theta_a, 1e8 * k_b 
+            b, h = b.numpy(), h.numpy()
 
-            l0, l1 = 4, 20 
-            nodes = np.array([ 
-                [0,  0], 
-                [l0, 0], 
-                [l1, 0]]) 
-            elements = np.array([
-                        [0, 1], 
-                        [1, 2]]) 
+            # Beam  
+            n = 10 
+            L = 20
+            beam = Frame() 
+            nodes = [[i*L/n, 0, 0] for i in range(n+1)]
+            beam.add_nodes(nodes)
 
-            # section properties, self weight  
-            E = 30e9 # N/m 
-            A = b * h # m2 
-            I = b * h**3 / 12 # m4 
-            w = 1.35 * 24e3 * b * h # N/m              
-            M0, V0 = -w*l0**2/12, -w*l0/2 # Nm, N
-            M2, V2 = w*l1**2/12, -w*l1/2 
-            M1, V1 = -M0 + -M2, V0 + V2
+            # Material (linear elastic)
+            E = 30e9    # N/m2
+            nu = 0.2    # poisson's ratio (uncracked) 
+            rho = 2400  # kg/m3
 
-            # applied loads 
-            R, W = 1.35 * 1500e3, 1.35 * 600e3 # N 
-            Rx = R * math.cos(math.radians(theta))  # N
-            Ry = R * math.sin(math.radians(theta))  # N        
-            V = -(W + Ry) # N 
-            M = -(Rx * 21.3) + (Ry * (7.3/2 - 1)) + (W * 1) # Nm 
+            # Section 
+            b, h = 0.5, 1.0 # NOTE 
+            A = b*h         # m2
+            Iy = b*h**3/12  # m4
+            Iz = 1.0        # m4
+            J =  1.0        # m4
+            Iw = 1.0        # m6 
 
-            # staticFEM  
-            frame = Frame(nodes, elements, E, A, I)  
-            frame.add_constraints(dofs=[[1, 1, 1], [0, 0, 0], [0, 0, 0]], nodes=[0, 1, 2]) 
-            frame.add_constraints(stiffness=[[0, k_b, 0], [0, k_a, k_theta_a]], nodes=[1, 2]) 
+            beam.add_material("concrete", LinearElastic(rho=rho, E=E, nu=nu))
+            beam.add_section("rectangular", Section(A=A, Iy=Iy, Iz=Iz, J=J, Iw=Iw, y0=0, z0=0))
+            beam.add_elements([[i, i+1] for i in range(n)], "concrete", "rectangular", element_class=ThinWalledBeamElement)
 
-            # @service 
-            frame.add_loads(loads=[[0, V0, M0], [0, V1, M1], [0, V+V2, M+M2]], nodes=[0, 1, 2]) 
-            frame.initialise() 
-            frame.solve() 
-            Mservice = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
+            # Find indices for supports
+            xcoords = np.array(nodes)[:,0]
+            support_0_ind = 0                               # end support at 0m 
+            support_1_ind = np.argmin(np.abs(xcoords - 4))  # internal support at 4m 
+            support_2_ind = n                               # end support at 20m 
             
-            # @transfer 
-            M = V = 0 
-            frame.add_loads(loads=[[0, V0, M0], [0, V1, M1], [0, V+V2, M+M2]], nodes=[0, 1, 2]) 
-            frame.initialise()
-            frame.solve() 
-            Mtransfer = max([abs(frame.f[i][0]) for i in range(nodes.shape[0])])
+            # # end support 
+            # beam.add_boundary_condition(support_0_ind, [0, 0, 1, 0, 0, 0, 0], BoundaryCondition) 
+            # # internal support 
+            # beam.add_elastic_boundary_condition(support_1_ind, dof_index=2, stiffness=k_2)       # stiff vertical support 
+            # # end support 
+            # beam.add_elastic_boundary_condition(support_2_ind, dof_index=2, stiffness=k_1)       # stiff vertical support 
+            # beam.add_elastic_boundary_condition(support_2_ind, dof_index=4, stiffness=k_1_theta) # stiff rotational support 
 
+            # simply supported 
+            # beam.add_boundary_condition(support_0_ind, [0, 0, 0, 0, 1, 1, 1], BoundaryCondition) 
+            # beam.add_boundary_condition(support_2_ind, [1, 0, 0, 1, 1, 1, 1], BoundaryCondition) 
+            beam.add_boundary_condition(support_0_ind, [0, 0, 0, 0, 1, 0, 0], BoundaryCondition)  # Only θy free
+            beam.add_boundary_condition(support_2_ind, [1, 0, 0, 0, 1, 0, 0], BoundaryCondition)  # ux and θy free
+
+            # Applied loads 
+            R, W = 1.35 * 1500e3, 1.35 * 600e3              # N 
+            Rx = R * math.cos(math.radians(theta))          
+            Ry = R * math.sin(math.radians(theta))                
+            V = -(W + Ry)                                   # N 
+            M = (Rx * 21.3) - (Ry * (7.3/2 - 1)) - (W * 1)  # Nm 
+
+            # beam.add_nodal_load(n, [0, 0, V, 0, M, 0, 0], NodalLoad)
+            beam.add_nodal_load(n//2, [0, 0, -1, 0, 0, 0, 0], NodalLoad)
+            # beam.add_gravity_load()
+
+            # Solve and show model 
+            results = beam.solve() 
+
+            # print(results.get_nodal_displacements(node_id=n//2, dof_ind=2))
+            # max_moment = results.get_element_forces(n//2, n_points=10, force_type='moment_y', summary_type='all')
+            # print(f"Maximum moment My: {max_moment['moment_y_min']} at position {max_moment['moment_y_min_position']}")
+            # print(f"Maximum moment My: {max_moment['moment_y_max']} at position {max_moment['moment_y_max_position']}")
+
+            for i in range(n):
+                elem_moment = results.get_element_forces(i, n_points=5, force_type='moment_y', summary_type='all')
+                print(f"Element {i}: Min={elem_moment['moment_y_min']}, Max={elem_moment['moment_y_max']}")
+
+            beam.show(scale=1e7, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0)
+
+            # Service condition (with applied load)
+            # Transfer condition (only self-weight, and prestress?) 
             # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
-            # frame.show(figsize=(8, 4), 
-            #         member_id=True, 
-            #         node_id=False,
-            #         supports=True, 
-            #         nodal_forces=True, 
-            #         nodal_disp=False,
-            #         scale=100)
 
-            # @transfer 
-            A = b * h * 1e6 # mm2 
-            fc = 18 # N/mm2             
-            ft = 0 # N/mm2 
-            Ztop = I / (h/2) * 1e9 # mm3 
-            Zbot = I / (h/2) * 1e9 # mm3 
-            Mmax = Mtransfer * 1e3 # Nmm     
-            Mmin = Mtransfer * 1e3 # Nmm            
-            losses = 0.95 
-            ebounds = [0, (h/2 - 0.1) * 1e3] # mm 
-            transfer = SectionForce(A=A, fc=fc, ft=ft, Ztop=Ztop, Zbot=Zbot, Mmax=Mmax, Mmin=Mmin, losses=losses) 
-
-            # @service 
-            A = b * h * 1e6 # mm2 
-            fc = 18 # N/mm2            
-            ft = 0 # N/mm2 
-            Ztop = I / (h/2) * 1e9 # mm3
-            Zbot = I / (h/2) * 1e9 # mm3
-            Mmax = Mservice * 1e3 # Nmm            
-            Mmin = Mservice * 1e3 # Nmm            
-            losses = 0.85 
-            ebounds = [0, (h/2 - 0.1) * 1e3] # mm 
-            service = SectionForce(A=A, fc=fc, ft=ft, Ztop=Ztop, Zbot=Zbot, Mmax=Mmax, Mmin=Mmin, losses=losses) 
-
-            # design  
-            P, _ = optimize_magnel(transfer=transfer, service=service, ebounds=ebounds, mode='min', output=False) 
-            self.m[i] = P 
+            # self.m[i] = P 
 
     def f(self): 
+        # beam cost f(P,d)
         P, fp, rho = self.m[:, 0], 0.8 * 1860e6, 7850 # N, N/m, kg/m3
         l, b, h = 20, self.x[:, 0], self.x[:, 1] 
         concrete = 145 * (l * b * h)
@@ -178,9 +182,32 @@ class Model():
         formwork = 36 * (l * b) 
         return -(concrete + tendons + formwork)
         
-    def g(self): 
-        # P >> 0 for feasible (e, P), hence g < 0 for feasible section 
-        return -self.m.flatten() + 1 
+    def g1(self): 
+        # SERVICE loadcase, maximum HOGGING, TOP fiber: σ = P/A - Pe/Z + M/Z
+        P, e = self.m[:, 0], self.m[:, 1]  
+        b, d = self.m[:, 2], self.m[:, 3]  
+        A, Z = b * d, b * d**2 / 6  
+        M_hog = self.m[:, 4] # Maximum hogging moment (negative) NOTE is this negative?
+        
+        # For hogging (negative M) at top fiber, stress is:
+        # Note the signs: -Pe/Z gives compression, +M/Z gives tension for negative M
+        stress = P/A - P*e/Z + M_hog/Z
+        
+        # Return negative stress so g<0 means stress < allowable
+        # return stress - allowable_stress  # Want g<0 for constraint satisfaction
+        return stress
+
+    def g2(self): 
+        # SERVICE loadcase, maximum HOGGING, BOTTOM fiber: σ = P/A + M/Z NOTE (?)
+        pass 
+        
+    def g3(self): 
+        # SERVICE loadcase, maximum SAGGING, TOP fiber: σ = P/A + M/Z NOTE (?)
+        pass 
+
+    def g4(self): 
+        # SERVICE loadcase, maximum SAGGING, BOTTOM fiber: σ = P/A + M/Z NOTE (?)
+        pass 
 
 def bayesopt(ninitial, iters, n): 
 
@@ -190,34 +217,45 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"b": (0.1, 1.0), "h": (0.1, 1.0)} 
+    # bounds = {"b": (0.2, 1.0), "h": (0.2, 1.0)}
+    bounds = {"b": (0.5, 1.0), "h": (0.5, 1.0)} # NOTE limit to 0.5 m 
     
+    # mu = torch.tensor([27.5, 1.5, 1.5, 1.5]) 
+    # cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
+    #                     [        0.0,         1,    0.9*1,    0.7*1],
+    #                     [        0.0,     0.9*1,        1,    0.7*1],
+    #                     [        0.0,     0.7*1,    0.7*1,        1]])
     mu = torch.tensor([27.5, 1.5, 1.5, 1.5]) 
     cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
                         [        0.0,         1,    0.9*1,    0.7*1],
                         [        0.0,     0.9*1,        1,    0.7*1],
-                        [        0.0,     0.7*1,    0.7*1,        1]])
+                        [        0.0,     0.7*1,    0.7*1,        1]]) / 10 # NOTE low variance 
     dist = MultivariateNormal(mu, cov)
 
     problem.set_bounds(bounds, padding=0.1) 
     problem.set_dist(dist) 
     problem.add_model(model) 
     problem.add_objectives([model.f]) 
-    problem.add_constraints([model.g]) 
+    problem.add_constraints([model.g1]) 
 
-    xi = problem.sample_xi(nsamples=int(2e2)).to(device)
-    surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
-    borc = Borc(surrogate, acquisition) 
-    borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="rand", max_acq=torch.tensor([0.0])) 
-    SurrogateIO.save(borc.surrogate, output_dir) 
-    borc.surrogate = SurrogateIO.load(output_dir) 
+    for _ in range(1):
+        x = problem.sample()
+        # print(x)
+        problem.model(x)
 
-    # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
-    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    plotcontour(problem, borc)
+    # xi = problem.sample_xi(nsamples=int(2e2)).to(device)
+    # surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
+    # acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
+    # borc = Borc(surrogate, acquisition) 
+    # borc.cuda(device) 
+    # borc.initialize(nsamples=ninitial, sample_method="rand", max_acq=torch.tensor([0.0])) 
+    # SurrogateIO.save(borc.surrogate, output_dir) 
+    # borc.surrogate = SurrogateIO.load(output_dir) 
+
+    # # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
+    # # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
+    # # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
+    # plotcontour(problem, borc)
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters) 
@@ -242,5 +280,5 @@ def bayesopt(ninitial, iters, n):
 
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 500, 1, 1 
+    ninitial, iters, n = 100, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
