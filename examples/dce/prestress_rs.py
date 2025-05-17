@@ -99,7 +99,7 @@ class Model():
             b, h = b.numpy(), h.numpy()
 
             # Beam  
-            n = 10 
+            n = 10 # num elements 
             L = 20
             beam = Frame() 
             nodes = [[i*L/n, 0, 0] for i in range(n+1)]
@@ -150,26 +150,25 @@ class Model():
             M = (Rx * 21.3) - (Ry * (7.3/2 - 1)) - (W * 1)  # Nm 
 
             # beam.add_nodal_load(n, [0, 0, V, 0, M, 0, 0], NodalLoad)
+            # beam.add_nodal_load(n, [1, 0, 0, 0, 0, 0, 0], NodalLoad)
             beam.add_nodal_load(n//2, [0, 0, -1, 0, 0, 0, 0], NodalLoad)
+            # beam.add_nodal_load(n//2, [-1, -0.5, -1, 0, 20, 0, 0], NodalLoad)
             # beam.add_gravity_load()
 
             # Solve and show model 
             results = beam.solve() 
+            
+            beam.show_deformed_shape(scale=1e7, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0)
+            beam.show_force_field(force_type='My')
 
-            # print(results.get_nodal_displacements(node_id=n//2, dof_ind=2))
-            # max_moment = results.get_element_forces(n//2, n_points=10, force_type='moment_y', summary_type='all')
-            # print(f"Maximum moment My: {max_moment['moment_y_min']} at position {max_moment['moment_y_min_position']}")
-            # print(f"Maximum moment My: {max_moment['moment_y_max']} at position {max_moment['moment_y_max_position']}")
+            # TODO decide what's reasonable with drawing BMD and getting positive/negative values for design 
+            element_forces = results.process_element_internal_forces(element_id=0, force_type='My', summary_type='max')
+            print(element_forces['My_max'])
+            print(results.process_element_forces(force_type='My', summary_type='min'))
 
-            for i in range(n):
-                elem_moment = results.get_element_forces(i, n_points=5, force_type='moment_y', summary_type='all')
-                print(f"Element {i}: Min={elem_moment['moment_y_min']}, Max={elem_moment['moment_y_max']}")
-
-            beam.show(scale=1e7, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0)
-
-            # Service condition (with applied load)
+            # Service condition (with applied load) 
             # Transfer condition (only self-weight, and prestress?) 
-            # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm")
+            # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm") 
 
             # self.m[i] = P 
 
