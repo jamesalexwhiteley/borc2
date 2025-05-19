@@ -38,10 +38,11 @@ class Problem():
         param_bounds : dict of {str : tuple}
             parameter name and associated upper and lower bound 
         """ 
+        padding_copy = padding
         padded_bounds = {}
         for key, (lower, upper) in param_bounds.items():
             range_val = upper - lower
-            padding = padding * range_val
+            padding = padding_copy * range_val 
             padded_lower = lower - padding
             padded_upper = upper + padding
             padded_bounds[key] = torch.tensor((padded_lower, padded_upper))
@@ -323,9 +324,6 @@ class Problem():
     def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False):
         """
         Monte carlo estimate of RBO objective and constraint(s) 
-
-        NOTE use with multiple constraints has not been implemented 
-
         """
         x_batch, _ = self.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
         m = self.model(x_batch.view(-1, x_batch.size(-1)))
@@ -363,6 +361,8 @@ class Problem():
                     device='cpu'):
         """
         Simple monte carlo implementation using full factorial sampling.
+
+        NOTE needs to be tested with multiple constraints (!)
 
         Parameters 
         ---------- 
