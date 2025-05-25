@@ -73,8 +73,9 @@ def plotcontour(problem, borc):
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1] 
-            probs.append(pi)
+            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]     
+            # probs.append(pi[0])
+            probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
         prob_grid = torch.tensor(probs).reshape(P_grid_2d.shape)
@@ -92,8 +93,9 @@ def plotcontour(problem, borc):
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]
-            probs.append(pi)
+            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]  
+            # probs.append(pi[0])
+            probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
         prob_grid = torch.tensor(probs).reshape(P_grid_2d.shape)
@@ -111,8 +113,9 @@ def plotcontour(problem, borc):
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]
-            probs.append(pi)
+            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]    
+            # probs.append(pi[0])
+            probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
         prob_grid = torch.tensor(probs).reshape(e_grid_2d.shape)
@@ -170,9 +173,9 @@ class Model():
     def __call__(self, x): 
 
         self.x = x.cpu()
-        self.m = torch.zeros((self.x.size(0), 1)) 
+        self.m = torch.zeros((self.x.size(0), 2)) 
 
-        # 0.0 INITALISE BEAM MODEL   
+        # 0.0 Initialise beam model    
         n = 10 # num_elems
         L = 20
         beam = Frame()  
@@ -191,18 +194,24 @@ class Model():
         support_1_ind = np.argmin(np.abs(xcoords - 4))  # internal support at 4m 
         support_2_ind = n                               # end support at 20m 
 
+        # # NOTE (!) use default values (!)
+        # self.x = torch.tensor([[-50, 0.5, 1.0, 100, 100]]) # MN, m, m, kN/mm, kN/mm
+
+        # 0.3 Store beam width with other variables 
+        b = 2.5 # m 
+        b_col = torch.full((self.x.shape[0], 1), b)
+        self.x = torch.cat([self.x, b_col], dim=1)
+
         # models run sequentially
-        for i, (P, e, d, theta, k_a, k_theta_a, k_b) in enumerate(self.x):  
+        for i, (P, e, d, k01, k02, _) in enumerate(self.x):  
 
             # 1. Get parameters 
-            theta = 27.5                     # NOTE (!) use mean vector for example calculation (!)
-            k0 = 100 # 100 kN/mm 
-            k1, k1theta, k2 = k0 * 1e6, k0 * 1e6, k0 * 1e6 # N/m
-            k1, k1theta, k2 = (0.7*15) * k1, (0.7*20) * k1theta, (0.7*2) * k2 # NOTE need to change moment arm estimate 
-
-            # k_1, k_1_theta, k_2 = 1e8 * k_a, 1e10 * k_theta_a, 1e8 * k_b 
-            # d = d.numpy() 
-            d = 1.0 # NOTE (!) default value 
+            theta = 27.5 # deg            
+            k1= (0.7*15) * k01 * 1e6 # N/m
+            k1theta = (0.7*20) * k01 * 1e6 # Nm/rad            TODO (!) moment arm estimate? 
+            k2 = (0.7*2) * k02 * 1e6 # N/m 
+            P = P * 1e6 # N 
+            d = d.numpy() 
 
             # 2. Reset loads and supports 
             beam.reset_boundary_conditions()
@@ -210,41 +219,39 @@ class Model():
             beam.reset_elements()
             beam.reset_sections()
 
-            # 3. Section 
-            b = 1.0 # NOTE BEAM WIDTH 
+            # 3. Section  
             beam.add_section("rectangular", Section(A=b*d, Iy=b*d**3/12, Iz=1.0, J=1.0, Iw=1.0, y0=0, z0=0))
             beam.add_elements([[i, i+1] for i in range(n)], "concrete", "rectangular", element_class=ThinWalledBeamElement)
                 
             # 4. Create new supports 
+            # beam.add_boundary_condition(support_0_ind, [0, 0, 0, 1, 1, 1, 0], BoundaryCondition) 
+            # beam.add_boundary_condition(support_2_ind, [0, 0, 0, 0, 1, 1, 0], BoundaryCondition) 
             beam.add_boundary_condition(support_0_ind, [0, 0, 1, 0, 0, 0, 0], BoundaryCondition) # end support 
             beam.add_elastic_boundary_condition(support_1_ind, dof_index=2, stiffness=k2)        # stiff vertical (internal) support 
             beam.add_elastic_boundary_condition(support_2_ind, dof_index=2, stiffness=k1)        # stiff vertical (end) support 
             beam.add_elastic_boundary_condition(support_2_ind, dof_index=4, stiffness=k1theta)   # stiff rotational (end) support 
 
-            # 5. Apply loads  
-            R, W = 1.35 * 1500e3, 1.35 * 600e3             # N 
+            # 5. Apply loads (1.35 load factor applied)
+            R, W = 1500e3, 600e3 # N 
             Rx = R * math.cos(math.radians(theta))          
             Ry = R * math.sin(math.radians(theta))                
-            V = -(W + Ry)                                  # N 
+            V = -(W + Ry)  
             M = (Rx * 21.3) - (Ry * (7.3/2 - 1)) - (W * 1) # Nm 
-            beam.add_nodal_load(n, [0, 0, V, 0, M, 0, 0], NodalLoad)          
-            beam.add_gravity_load([0, 0, -1.35]) # NOTE load factor applied 
-            # [beam.add_uniform_load(i, [0, 0, -1], UniformLoad) for i in range(n)] # TODO need to apply Pe moment to beam 
+            beam.add_nodal_load(n, [0, 0, 1.35*V, 0, 1.35*M, 0, 0], NodalLoad)          
+            beam.add_gravity_load([0, 0, -1.35]) 
+            [beam.add_uniform_moment(i, [0, P*e, 0], UniformLoad) for i in range(n)] # force (-ve), above N.A. (e +ve) -> negative (sagging) moment (-ve) 
 
-            # 6. Solve and show model 
+            # 6. Solve model  
             results = beam.solve() 
-            beam.show_deformed_shape(scale=1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) # TODO at least check self weight deflection is as expected 
             moment = results.process_element_forces(force_type='My', summary_type='all')
-            M_pos, M_neg = moment['My_max'], moment['My_min']
-            beam.show_force_field(force_type='My', npoints=5, scale=2)
+            Mpos, Mneg = moment['My_max'], moment['My_min']
+            Mhog, Msag = next(iter(Mpos.values())), next(iter(Mneg.values()))                
+            self.m[i] = torch.tensor([Mhog, Msag])                                  # TODO Transfer condition (self-weight + prestress)  
 
-            M_hog = next(iter(M_pos.values()))                    
- 
-            self.m[i] = M_hog 
+            # 7. Show model 
+            # beam.show_deformed_shape(scale=1e1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
+            # beam.show_force_field(force_type='My', npoints=5, scale=2)
             
-            # Service condition (with applied load) 
-            # Transfer condition (only self-weight, and prestress?) 
-            # print(f"Mservice {Mservice*1e-3:.4f} kNm, Mtransfer {Mtransfer*1e-3:.4f} kNm") 
 
     def f(self): 
         # beam cost f(P,d)
@@ -256,40 +263,51 @@ class Model():
         return -(concrete + tendons + formwork)
         
     def g1(self): 
-        # SERVICE loadcase, maximum HOGGING, TOP fiber: σ = P/A - Pe/Z + M/Z
-        P, e, d = self.x[:, 0], self.x[:, 1], self.x[:, 2]                          # TODO we need a way to ensure e is feasible 
-        b = 1.0 # NOTE BEAM WIDTH 
-        A, Z = b*d, b*d**2/6  
-        M_hog = self.m[0] # Maximum hogging moment 
-        # print(M_hog)
-        
-        # For hogging (negative M) at top fiber, stress is:
-        # Note the signs: -Pe/Z gives compression, +M/Z gives tension for negative M
-        stress = P/A - P*e/Z + M_hog/Z # N/m2
-
+        # SERVICE loadcase, max HOGGING, TOP fiber: σ = P/A + M/Z
+        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        A, Z = b*d, b*d**2/6 
+        Mhog = self.m[:, 0] 
+        stress = (P/A + Mhog/Z) * 1e-6 # kN/mm2, for hogging at top fiber, stress = P/A (-ve) + M/Z (+ve)
         # print(f"P/A = {P/A * 1e-6} N/mm2")
-        # print(f"P*e/Z = {P*e/Z * 1e-6} N/mm2")
-        # print(f"M/Z = {M_hog/Z * 1e-6} N/mm2")
-        # print(stress * 1e-6)
-        # print()
-        
-        # Want g<0, i.e., no tensile stress for constraint satisfaction NOTE check sign convention 
-        return stress * 1e-6
+        # print(f"M/Z = {Mhog/Z * 1e-6} N/mm2")
+        # Want σ < ft, i.e., no tensile stress -> want g < 0
+        return stress - 0.0
 
-    # def g2(self): 
-    #     # SERVICE loadcase, maximum HOGGING, BOTTOM fiber: σ = P/A + Pe/Z - M/Z NOTE (?)
-    #     pass 
+    def g2(self): 
+        # SERVICE loadcase, max HOGGING, BOTTOM fiber: σ = P/A - M/Z 
+        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        A, Z = b*d, b*d**2/6 
+        Mhog = self.m[:, 0] 
+        stress = (P/A - Mhog/Z) * 1e-6 # kN/mm2
+        # print(f"P/A = {P/A * 1e-6} N/mm2")
+        # print(f"M/Z = {-Mhog/Z * 1e-6} N/mm2")
+        # Want -σ < fc, i.e., compressive stress within limit -> want g < 0 # TODO is 30 MPa compression limit?
+        return - stress - 30.0 
         
-    # def g3(self): 
-    #     # SERVICE loadcase, maximum SAGGING, TOP fiber: σ = P/A + M/Z NOTE (?)
-    #     pass 
+    def g3(self): 
+        # SERVICE loadcase, max SAGGING, TOP fiber: σ = P/A + M/Z 
+        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        A, Z = b*d, b*d**2/6 
+        Msag = self.m[:, 1] 
+        stress = (P/A + Msag/Z) * 1e-6 # kN/mm2, for hogging at top fiber, stress = P/A (-ve) + M/Z (+ve)
+        # print(f"P/A = {P/A * 1e-6} N/mm2")
+        # print(f"M/Z = {Mhog/Z * 1e-6} N/mm2")
+        # Want σ < ft, i.e., no tensile stress -> want g < 0
+        return stress - 0.0
 
-    # def g4(self): 
-    #     # SERVICE loadcase, maximum SAGGING, BOTTOM fiber: σ = P/A + M/Z NOTE (?)
-    #     pass 
+    def g4(self): 
+        # SERVICE loadcase, max SAGGING, BOTTOM fiber: σ = P/A - M/Z
+        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        A, Z = b*d, b*d**2/6 
+        Msag = self.m[:, 1] 
+        stress = (P/A - Msag/Z) * 1e-6 # kN/mm2
+        # print(f"P/A = {P/A * 1e-6} N/mm2")
+        # print(f"M/Z = {-Mhog/Z * 1e-6} N/mm2")
+        # Want -σ < fc, i.e., compressive stress within limit -> want g < 0 # TODO is 30 MPa compression limit?
+        return - stress - 30.0 
 
     # def g5(self): 
-    #     # NEED A (DETERMINISTIC?) CONSTRAINT (or two?) ON e BASED ON CROSS SECTION DIMENSIONS 
+    #     # NEED A (DETERMINISTIC?) CONSTRAINT (or two?) ON e BASED ON CROSS SECTION DIMENSIONS  # TODO we need a way to ensure e is feasible 
     #     pass 
 
 def bayesopt(ninitial, iters, n): 
@@ -300,30 +318,26 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"P": (0.1e6, 10e6), "e": (-0.5, 0.5), 'd': (0.5, 2.0)} # TODO need to reasonable variable bounds 
+    bounds = {"P": (-10, -100), "e": (0, 0.5), 'd': (0.5, 2.0)}            # TODO need to verify reasonable bounds 
 
-    # mu = torch.tensor([27.5, 1.5, 1.5, 1.5]) 
-    # cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
-    #                     [        0.0,         1,    0.9*1,    0.7*1],
-    #                     [        0.0,     0.9*1,        1,    0.7*1],
-    #                     [        0.0,     0.7*1,    0.7*1,        1]]) # TODO change this to either two or three variables  
-    mu = torch.tensor([27.5, 0.1, 0.1, 0.1]) # k_1, k_1_theta, k_2
-    cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
-                        [        0.0,         1,    0.9*1,    0.7*1],
-                        [        0.0,     0.9*1,        1,    0.7*1],
-                        [        0.0,     0.7*1,    0.7*1,        1]]) / 10 # NOTE TEST LOW VARIANCE 
-    dist = MultivariateNormal(mu, cov)
+    # Uncertain parameters: ground stiffness for two pile groups
+    mu = torch.tensor([100.0, 100.0])  # k0_1, k0_2 [kN/mm]
+    cov = torch.tensor([[    (20)**2,  0.5*(20)**2],   # COV = 20%, correlation = 0.5
+                        [0.5*(20)**2,      (20)**2]])
+    dist = MultivariateNormal(mu, cov) 
 
-    problem.set_bounds(bounds, padding=0.1) 
+    problem.set_bounds(bounds, padding=0.05) 
     problem.set_dist(dist) 
     problem.add_model(model) 
     problem.add_objectives([model.f]) 
     problem.add_constraints([model.g1]) 
+    problem.add_constraints([model.g2])
+    problem.add_constraints([model.g3]) 
+    problem.add_constraints([model.g4]) 
 
-    # for _ in range(1):
-    #     x = problem.sample()
-    #     problem.model(x)
-    #     problem.constraints()
+    # x = problem.sample(nsamples=10)
+    # problem.model(x)
+    # print(problem.constraints())
 
     plotcontour(problem, None)
 
