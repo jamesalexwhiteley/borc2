@@ -32,6 +32,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def plotcontour(problem, borc):
 
+    # Output path 
     output_dir = 'figures'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -42,8 +43,8 @@ def plotcontour(problem, borc):
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
 
-    # Steps for plotting 
-    plot_steps = 10
+    # Steps for plotting NOTE [plot_steps = 50, nsamples = int(1e2)] runtime: 15 hours
+    plot_steps = 50
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
     d_vals = torch.linspace(d_lower, d_upper, steps=plot_steps)
@@ -59,7 +60,7 @@ def plotcontour(problem, borc):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e1)
+    nsamples = int(1e2)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -175,6 +176,7 @@ def plotcontour(problem, borc):
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.95, bottom=0.07, wspace=0.25, hspace=0.3)
+    plt.savefig(output_path, dpi=600)
     plt.show()
 
 class Model():
@@ -207,9 +209,9 @@ class Model():
         b_col = torch.full((self.x.shape[0], 1), b)
         self.x = torch.cat([self.x, b_col], dim=1)
 
-        SMOKE_TEST = False  
+        SMOKE_TEST = True   
         if SMOKE_TEST: 
-            self.x = torch.tensor([[-50, 0.5, 1.0, 100, 100, b]]) # MN, m, m, kN/mm, kN/mm
+            self.x = torch.tensor([[-50, 0.2, 1.0, 100, 100, b]]) # MN, m, m, kN/mm, kN/mm
 
         # models run sequentially
         for i, (P, e, d, k01, k02, _) in enumerate(self.x):  
@@ -254,8 +256,8 @@ class Model():
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos0, Mneg0 = moment['My_max'], moment['My_min']
             Mhog0, Msag0 = max(next(iter(Mpos0.values())), 0), min(next(iter(Mneg0.values())), 0)   
-            # print(Mpos0)
-            # print(Mneg0) 
+            print(Mpos0)
+            print(Mneg0) 
             if SMOKE_TEST: 
                 beam.show_deformed_shape(scale=1e1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
                 beam.show_force_field(force_type='My', npoints=5, scale=2)         
@@ -265,8 +267,8 @@ class Model():
             results = beam.solve() 
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos1, Mneg1 = moment['My_max'], moment['My_min']
-            # print(Mpos1)
-            # print(Mneg1)
+            print(Mpos1)
+            print(Mneg1)
             Mhog1, Msag1 = max(next(iter(Mpos1.values())), 0), min(next(iter(Mneg1.values())), 0)   
             if SMOKE_TEST: 
                 beam.show_deformed_shape(scale=1e1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
@@ -357,12 +359,12 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"P": (-50, -125), "e": (-0.25, 0.5), 'd': (2.5, 4.0)}            # TODO verify -e works as expected
+    bounds = {"P": (-50, -125), "e": (-0.25, 0.5), 'd': (2.5, 4.0)}      
 
     # Uncertain parameters: ground stiffness for two pile groups
-    mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]
-    cov = torch.tensor([[    (25)**2,  0.5*(25)**2],    # COV = 25%, correlation = 0.5              TODO doesn't seem to be much variation with uncertain params? contors don't need many samples?
-                        [0.5*(25)**2,      (25)**2]])
+    mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
+    cov = torch.tensor([[    (30)**2,  0.5*(30)**2],    # COV = 30%, correlation = 0.5              
+                        [0.5*(30)**2,      (30)**2]])
     dist = MultivariateNormal(mu, cov) 
 
     problem.set_bounds(bounds, padding=0.05) 
@@ -372,12 +374,12 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state  
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state
 
-    # x = problem.sample(nsamples=100)
-    # problem.model(x)
-    # print(problem.constraints())
-    # print((problem.constraints() < 0).all(dim=1))
+    x = problem.sample(nsamples=1)
+    problem.model(x)
+    print(problem.constraints())
+    print((problem.constraints() < 0).all(dim=1))
 
-    plotcontour(problem, None)
+    # plotcontour(problem, None)
 
     # xi = problem.sample_xi(nsamples=int(2e2)).to(device)
     # surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
