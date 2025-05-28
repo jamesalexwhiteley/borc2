@@ -217,31 +217,66 @@ class Borc():
 
     def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False, return_posterior=False):
         """
-        Monte carlo estimate of RBO objective and constraint(s) 
-
-        NOTE use with multiple constraints has not been implemented 
-
+        Monte carlo estimate of RBO objective and constraint(s) using surrogates
         """
         x_batch, _ = self.surrogate.problem.gen_batch_data(x, nsamples=nsamples, fixed_base_samples=True)
-        f = self.surrogate.predict_objectives(x_batch)[0]
-        g = self.surrogate.predict_constraints(x_batch)[0]  
+        
+        # Get surrogate predictions
+        f0 = self.surrogate.predict_objectives(x_batch)[0]
+        g0 = self.surrogate.predict_constraints(x_batch)  
 
-        f_mu, f_std = f.posterior()
-        f1, f2 = f_mu.mean(dim=1), f_std.mean(dim=1)
+        # Process objectives - get posterior and compute statistics
+        f_mu, f_std = f0.posterior()
+        
+        # Compute objective statistics over samples
+        f_mean = f_mu.mean(dim=1)  
+        f_std_mean = f_std.mean(dim=1)  
+        
+        # Process constraints
+        if g0 != [] and len(g0) > 0:
+            n_constraints = len(g0)
+            pi = torch.zeros(n_constraints, x_batch.size(0))  # [n_constraints, n_x]
+            g_mean = torch.zeros(n_constraints, x_batch.size(0))
+            g_std = torch.zeros(n_constraints, x_batch.size(0))
+            
+            for i, g in enumerate(g0):
+                # Get constraint posterior
+                g_mu, g_sigma = g.posterior()
+                
+                # Compute P[g <= 0] using normal CDF for each sample
+                # normal_dist = torch.distributions.Normal(g_mu, g_sigma)
+                # zero_tensor = torch.zeros_like(g_mu)
+                # cdf_vals = normal_dist.cdf(zero_tensor)  # P[g <= 0] for each sample
+                # pi[i] = cdf_vals.mean(dim=1) 
+                # g_mean[i] = pi[i]  
+                # g_std[i] = cdf_vals.std(dim=1)  
 
-        if g != []:
-            g_mu, g_std = g.posterior()
-            pi = torch.distributions.Normal(g_mu, g_std).cdf(torch.tensor([0.0]).to(g_mu.device)) 
-            g1 = pi.mean(dim=1).unsqueeze(0) # \int Phi(-mu/std) p(xi)dxi 
-            g2 = torch.sqrt(pi.var(dim=1, unbiased=True) / nsamples).unsqueeze(0) 
-            # g1 = (torch.sum(g_mu <= 0, dim=1) / nsamples).unsqueeze(0) 
-            # g2 = (g1 * (1 - g1)) / nsamples
-        else: 
-            g1 = [] 
-            g2 = [] 
+                # Use mean GP values only (ignore GP uncertainty)
+                pi[i] = (torch.sum(g_mu <= 0, dim=1) / nsamples)  
+                g_mean[i] = pi[i]
+                g_std[i] = torch.sqrt(pi[i] * (1 - pi[i]) / nsamples)  
+        else:
+            pi = torch.tensor([])
+            g_mean = torch.tensor([])
+            g_std = torch.tensor([])
+
+        if output:
+            print(f"x = {list(x.detach().cpu().numpy())}")
+            print(f"E[f(x,xi)] = {f_mean.detach().cpu().numpy()}")
+            if len(pi) > 0:
+                for i in range(pi.size(0)):
+                    print(f"P[g_{i+1}(x,xi)<=0] = {pi[i].detach().cpu().numpy()}")
 
         if return_vals:
-            return f1, [p for p in g1]
+            if len(g_mean) > 0:
+                return f_mean, [p for p in g_mean]
+            else:
+                return f_mean, []
         
         if return_posterior:
-            return f1, f2, [p for p in g1], [p for p in g2]
+            if len(g_mean) > 0:
+                return f_mean, f_std_mean, [p for p in g_mean], [p for p in g_std]
+            else:
+                return f_mean, f_std_mean, [], []
+        
+        return f_mean, [p for p in pi] if len(pi) > 0 else []

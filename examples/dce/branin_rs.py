@@ -38,7 +38,7 @@ def plotcontour(problem, borc):
     # PI = prob[0].view(X.shape).detach()
 
     # surrogate
-    steps = 500
+    steps = 10
     x = torch.linspace(0, 1, steps)
     y = torch.linspace(0, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')

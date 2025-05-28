@@ -26,11 +26,11 @@ warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try an
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')                        
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
-def plotcontour(problem, borc):
+def plotcontour(problem, borc, surrogate=False):
 
     # Output path 
     output_dir = 'figures'
@@ -44,7 +44,7 @@ def plotcontour(problem, borc):
     d_lower, d_upper = list(problem.param_bounds.values())[2]
 
     # Steps for plotting NOTE [plot_steps = 50, nsamples = int(1e2)] runtime: 15 hours
-    plot_steps = 50
+    plot_steps = 200
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
     d_vals = torch.linspace(d_lower, d_upper, steps=plot_steps)
@@ -60,7 +60,7 @@ def plotcontour(problem, borc):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e2)
+    nsamples = int(5e3)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -70,13 +70,15 @@ def plotcontour(problem, borc):
             P_grid_2d.reshape(-1),
             e_grid_2d.reshape(-1),
             torch.full_like(P_grid_2d.reshape(-1), d_val)
-        ], dim=1)
+        ], dim=1).to(device)
         
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]     
-            # probs.append(pi[0])
+            if surrogate:
+                _, pi = borc.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)
+            else: 
+                _, pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)     
             probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
@@ -90,13 +92,15 @@ def plotcontour(problem, borc):
             P_grid_2d.reshape(-1),
             torch.full_like(P_grid_2d.reshape(-1), e_val),
             d_grid_2d.reshape(-1)
-        ], dim=1)
+        ], dim=1).to(device)
         
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]  
-            # probs.append(pi[0])
+            if surrogate:
+                _, pi = borc.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)
+            else: 
+                _, pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)    
             probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
@@ -110,22 +114,22 @@ def plotcontour(problem, borc):
             torch.full_like(e_grid_2d.reshape(-1), P_val),
             e_grid_2d.reshape(-1),
             d_grid_2d.reshape(-1)
-        ], dim=1)
+        ], dim=1).to(device)
         
         # Calculate probabilities for each point
         probs = []
         for x in xpts:
-            pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)[1]    
-            # probs.append(pi[0])
+            if surrogate:
+                _, pi = borc.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)
+            else: 
+                _, pi = problem.rbo(x.unsqueeze(0), nsamples=nsamples, output=False, return_vals=True)      
             probs.append(np.prod(pi))
         
         # Reshape results to 2D grid for plotting
         prob_grid = torch.tensor(probs).reshape(e_grid_2d.shape)
         ed_results.append((e_grid_2d.numpy(), d_grid_2d.numpy(), prob_grid.numpy()))
 
-    print("Data generation complete:")
     toc()
-    tic()
 
     # Create grid 
     plt.figure(figsize=(10, 8))
@@ -171,9 +175,6 @@ def plotcontour(problem, borc):
                     bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.7))
         ax.grid(True, linestyle='--', alpha=0.4)
 
-    print("Data formatting complete:")
-    toc()
-
     plt.tight_layout()
     plt.subplots_adjust(top=0.95, bottom=0.07, wspace=0.25, hspace=0.3)
     plt.savefig(output_path, dpi=600)
@@ -209,9 +210,9 @@ class Model():
         b_col = torch.full((self.x.shape[0], 1), b)
         self.x = torch.cat([self.x, b_col], dim=1)
 
-        SMOKE_TEST = True   
+        SMOKE_TEST = False   
         if SMOKE_TEST: 
-            self.x = torch.tensor([[-50, 0.2, 1.0, 100, 100, b]]) # MN, m, m, kN/mm, kN/mm
+            self.x = torch.tensor([[50, 0.2, 1.0, 100, 100, b]]) # MN, m, m, kN/mm, kN/mm
 
         # models run sequentially
         for i, (P, e, d, k01, k02, _) in enumerate(self.x):  
@@ -221,7 +222,7 @@ class Model():
             k1= (0.7*15) * k01 * 1e6 # N/m
             k1theta = (0.7*20) * k01 * 1e6 # Nm/rad          
             k2 = (0.7*2) * k02 * 1e6 # N/m 
-            P = P * 1e6 # N 
+            P = -P * 1e6 # N 
             d = d.numpy() 
 
             # 2. Reset loads and supports 
@@ -256,8 +257,6 @@ class Model():
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos0, Mneg0 = moment['My_max'], moment['My_min']
             Mhog0, Msag0 = max(next(iter(Mpos0.values())), 0), min(next(iter(Mneg0.values())), 0)   
-            print(Mpos0)
-            print(Mneg0) 
             if SMOKE_TEST: 
                 beam.show_deformed_shape(scale=1e1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
                 beam.show_force_field(force_type='My', npoints=5, scale=2)         
@@ -267,8 +266,6 @@ class Model():
             results = beam.solve() 
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos1, Mneg1 = moment['My_max'], moment['My_min']
-            print(Mpos1)
-            print(Mneg1)
             Mhog1, Msag1 = max(next(iter(Mpos1.values())), 0), min(next(iter(Mneg1.values())), 0)   
             if SMOKE_TEST: 
                 beam.show_deformed_shape(scale=1e1, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
@@ -276,18 +273,18 @@ class Model():
 
             self.m[i] = torch.tensor([Mhog0, Msag0, Mhog1, Msag1])                                
             
-    def f(self): 
+    def f(self):                                                                                # TODO plot/check this, cost seems huge   
         # beam cost f(P,d)
         P, fp, rho = self.m[:, 0], 0.8 * 1860e6, 7850 # N, N/m, kg/m3
         l, d, b = 20, self.x[:, 2], self.x[:, 5] 
         concrete = 145 * (l * b * d)
         tendons = 9000/1000 * (rho * l * P / fp)
-        formwork = 36 * (2 * l*d + 2 * d*b)                                      
+        formwork = 36 * (2 * l*d + 2 * d*b)                                         
         return -(concrete + tendons + formwork)
         
     def g1(self):                                                                              
         # TRANSFER loadcase, max HOGGING, TOP fiber: σ = P/A + M/Z
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 0] 
         stress = (P/A + Mhog/Z) * 1e-6 # kN/mm2, for hogging at top fiber, stress = P/A (-ve) + M/Z (+ve)
@@ -296,7 +293,7 @@ class Model():
 
     def g2(self): 
         # TRANSFER loadcase, max HOGGING, BOTTOM fiber: σ = P/A - M/Z 
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 0] 
         stress = (P/A - Mhog/Z) * 1e-6 # kN/mm2, for hogging at bottom fiber, stress = P/A (-ve) + M/Z (-ve)
@@ -305,7 +302,7 @@ class Model():
         
     def g3(self): 
         # TRANSFER loadcase, max SAGGING, TOP fiber: σ = P/A + M/Z 
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 1] 
         stress = (P/A + Msag/Z) * 1e-6 
@@ -313,7 +310,7 @@ class Model():
 
     def g4(self): 
         # TRANSFER loadcase, max SAGGING, BOTTOM fiber: σ = P/A - M/Z
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 1] 
         stress = (P/A - Msag/Z) * 1e-6 
@@ -321,7 +318,7 @@ class Model():
     
     def g5(self):                                                                               
         # SERVICE loadcase, max HOGGING, TOP fiber: σ = P/A + M/Z
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 2] 
         stress = (P/A + Mhog/Z) * 1e-6 
@@ -329,7 +326,7 @@ class Model():
 
     def g6(self): 
         # SERVICE loadcase, max HOGGING, BOTTOM fiber: σ = P/A - M/Z 
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 2] 
         stress = (P/A - Mhog/Z) * 1e-6 
@@ -337,7 +334,7 @@ class Model():
         
     def g7(self): 
         # SERVICE loadcase, max SAGGING, TOP fiber: σ = P/A + M/Z 
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 3] 
         stress = (P/A + Msag/Z) * 1e-6 
@@ -345,7 +342,7 @@ class Model():
 
     def g8(self): 
         # SERVICE loadcase, max SAGGING, BOTTOM fiber: σ = P/A - M/Z
-        P, d, b = self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
+        P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 3] 
         stress = (P/A - Msag/Z) * 1e-6 
@@ -359,7 +356,7 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"P": (-50, -125), "e": (-0.25, 0.5), 'd': (2.5, 4.0)}      
+    bounds = {"P": (50, 125), "e": (-0.2, 0.5), 'd': (2.5, 4.0)}      
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
@@ -374,26 +371,33 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state  
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state
 
-    x = problem.sample(nsamples=1)
-    problem.model(x)
-    print(problem.constraints())
-    print((problem.constraints() < 0).all(dim=1))
+    # x = problem.sample(nsamples=1)
+    # problem.model(x)
+    # print(problem.constraints())
+    # print((problem.constraints() < 0).all(dim=1))
 
     # plotcontour(problem, None)
 
-    # xi = problem.sample_xi(nsamples=int(2e2)).to(device)
-    # surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
-    # acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
-    # borc = Borc(surrogate, acquisition) 
-    # borc.cuda(device) 
-    # borc.initialize(nsamples=ninitial, sample_method="rand", max_acq=torch.tensor([0.0])) 
+    xi = problem.sample_xi(nsamples=int(2e2)).to(device)
+    surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
+    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
+    borc = Borc(surrogate, acquisition) 
+    borc.cuda(device) 
+    # borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
     # SurrogateIO.save(borc.surrogate, output_dir) 
-    # borc.surrogate = SurrogateIO.load(output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
-    # # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    # # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
-    # # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    # plotcontour(problem, borc)
+    # Monte Carlo solution 
+    # mc_steps = 2
+    # P_lower, P_upper = list(problem.param_bounds.values())[0]
+    # e_lower, e_upper = list(problem.param_bounds.values())[1]
+    # d_lower, d_upper = list(problem.param_bounds.values())[2]
+    # params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
+    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e1), obj_type="mean", con_type="prob", con_eps=0.001, output=False)
+    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
+    # borc.rbo(xopt, nsamples=int(1e1), return_vals=True) 
+
+    plotcontour(problem, borc, surrogate=True)                                 # TODO do we need scalable GP models?
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters) 
@@ -415,8 +419,6 @@ def bayesopt(ninitial, iters, n):
     # return xopt, res 
     return None, None 
 
-
 if __name__ == "__main__": 
-
-    ninitial, iters, n = 1, 1, 1 
+    ninitial, iters, n = 400, 1, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
