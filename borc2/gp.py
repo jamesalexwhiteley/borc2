@@ -7,6 +7,8 @@ warnings.filterwarnings("ignore", message=r".*Negative variance values detected.
 # warnings.filterwarnings("ignore", category=GPInputWarning) 
 
 from borc2.utilities import NormalScaler, GaussianScaler 
+from gpytorch.models import ApproximateGP
+from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
 
 # Author: James Whiteley (github.com/jamesalexwhiteley) 
 
@@ -32,65 +34,131 @@ class Posterior():
             if value != None:
                 setattr(self, attr, value.to(device))
 
+# class GPModelIO:
+#     @staticmethod
+#     def save(model, output_path, metadata=None):
+#         """
+#         Save GP model, and optional metadata.
+
+#         """
+#         # save gp model data and state 
+#         save_dict = {
+#             'model_class': model.__class__,
+#             'model_state_dict': model.state_dict(),
+#             'likelihood_state_dict': model.likelihood.state_dict(),
+#             'train_x': model.train_x, 
+#             'train_y': model.train_y,
+#             'normalize_x': model.normalize_x,
+#             'standardize_y': model.standardize_y,
+#             'scaler_x': model.scaler_x,
+#             'scaler_y': model.scaler_y,
+#             'device': model.device 
+#         } 
+
+#         if metadata:
+#             save_dict['metadata'] = metadata
+#         torch.save(save_dict, output_path)
+
+#     @staticmethod
+#     def load(output_path, *model_args, **model_kwargs):
+#         """
+#         Load GP model.
+
+#         """
+#         if not os.path.exists(output_path):
+#             raise FileNotFoundError(f"No file found at {output_path}")
+        
+#         checkpoint = torch.load(output_path, weights_only=False)
+
+#         # initialise new gp model 
+#         model_class = checkpoint['model_class']
+#         train_x = checkpoint['train_x']
+#         train_y = checkpoint['train_y']
+#         model = model_class(train_x=train_x, train_y=train_y)
+
+#         # load state dict and internal data 
+#         model.load_state_dict(checkpoint['model_state_dict'])
+#         model.likelihood.load_state_dict(checkpoint['likelihood_state_dict'])
+#         model.normalize_x = checkpoint['normalize_x']
+#         model.standardize_y = checkpoint['standardize_y']
+#         model.scaler_x = checkpoint['scaler_x']
+#         model.scaler_y = checkpoint['scaler_y']
+#         model.device = checkpoint['device'] 
+
+#         model.cuda(model.device)
+#         model.eval()
+        
+#         metadata = checkpoint.get('metadata', {})
+#         if metadata:
+#             print(f"Loaded metadata: {metadata}")
+        
+#         return model 
+
 class GPModelIO:
     @staticmethod
     def save(model, output_path, metadata=None):
         """
         Save GP model, and optional metadata.
-
         """
-        # save gp model data and state 
         save_dict = {
             'model_class': model.__class__,
+            'model_init_args': {
+                'normalize_x': model.normalize_x,
+                'standardize_y': model.standardize_y,
+                'ntraining': model.ntraining,
+                'nstarts': model.nstarts,
+                'num_inducing': model.num_inducing,
+            },
             'model_state_dict': model.state_dict(),
             'likelihood_state_dict': model.likelihood.state_dict(),
-            'train_x': model.train_x, 
+            'train_x': model.train_x,
             'train_y': model.train_y,
-            'normalize_x': model.normalize_x,
-            'standardize_y': model.standardize_y,
             'scaler_x': model.scaler_x,
             'scaler_y': model.scaler_y,
-            'device': model.device 
-        } 
+            'device': model.device,
+        }
 
         if metadata:
             save_dict['metadata'] = metadata
+
         torch.save(save_dict, output_path)
 
     @staticmethod
-    def load(output_path, *model_args, **model_kwargs):
+    def load(output_path):
         """
         Load GP model.
-
         """
         if not os.path.exists(output_path):
             raise FileNotFoundError(f"No file found at {output_path}")
         
         checkpoint = torch.load(output_path, weights_only=False)
 
-        # initialise new gp model 
         model_class = checkpoint['model_class']
         train_x = checkpoint['train_x']
         train_y = checkpoint['train_y']
-        model = model_class(train_x=train_x, train_y=train_y)
+        model_init_args = checkpoint['model_init_args']
 
-        # load state dict and internal data 
+        model = model_class(
+            train_x=train_x,
+            train_y=train_y,
+            **model_init_args
+        )
+
         model.load_state_dict(checkpoint['model_state_dict'])
         model.likelihood.load_state_dict(checkpoint['likelihood_state_dict'])
-        model.normalize_x = checkpoint['normalize_x']
-        model.standardize_y = checkpoint['standardize_y']
         model.scaler_x = checkpoint['scaler_x']
         model.scaler_y = checkpoint['scaler_y']
-        model.device = checkpoint['device'] 
+        model.device = checkpoint['device']
 
         model.cuda(model.device)
         model.eval()
-        
+
         metadata = checkpoint.get('metadata', {})
         if metadata:
             print(f"Loaded metadata: {metadata}")
-        
-        return model 
+
+        return model
+
     
 class HomoscedasticGP(gpytorch.models.ExactGP):
     def __init__(self, 
@@ -259,8 +327,8 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         if self.normalize_x:
             x = self.scaler_x.normalize(x)
 
-        with gpytorch.settings.max_preconditioner_size(100): 
-            with gpytorch.settings.cholesky_jitter(self.jitter):
+        with gpytorch.settings.max_preconditioner_size(10): 
+            with gpytorch.settings.max_cholesky_size(512): 
                 if grad:
                     with gpytorch.settings.fast_pred_var():
                         self.posterior(self.likelihood(self(x))) 
@@ -339,6 +407,197 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
                 super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)           
                 self._clear_cache()
                 self.eval()
+
+class VariationalHomoscedasticGP(ApproximateGP):
+    def __init__(self, 
+                 train_x, 
+                 train_y, 
+                 normalize_x=True,
+                 standardize_y=True, 
+                 ntraining=100, 
+                 nstarts=5,
+                 num_inducing=100):
+        """
+        Variational GP that exactly matches HomoscedasticGP API
+        """
+        self.name = 'VariationalHomoscedasticGP'
+        self.jitter = 1e-2
+        self.normalize_x = normalize_x   
+        self.standardize_y = standardize_y 
+        self.ntraining = ntraining 
+        self.nstarts = nstarts
+        self.num_inducing = min(num_inducing, len(train_x))
+        self.device = 'cpu'
+        
+        # Store original data
+        self.original_train_x = train_x.clone()
+        self.original_train_y = train_y.clone()
+        self.fbest = torch.max(train_y) 
+        self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
+
+        # Apply scaling
+        if self.normalize_x:
+            self.scaler_x = NormalScaler(train_x, dim=0) 
+            train_x = self.scaler_x.normalize(train_x) 
+
+        if self.standardize_y:
+            self.scaler_y = GaussianScaler(train_y, dim=0) 
+            train_y = self.scaler_y.standardize(train_y) 
+
+        self.train_x = train_x 
+        self.train_y = train_y
+
+        # Inducing points 
+        inducing_points = train_x[:self.num_inducing, :]
+        variational_distribution = CholeskyVariationalDistribution(inducing_points.size(0))
+        variational_strategy = VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
+        super(VariationalHomoscedasticGP, self).__init__(variational_strategy)
+        
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+        
+        self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+    
+    def cuda(self, device):
+        self.to(device)
+        self.likelihood.to(device)
+        self.train_x = self.train_x.to(device)
+        self.train_y = self.train_y.to(device)
+        self.original_train_x = self.original_train_x.to(device)
+        self.original_train_y = self.original_train_y.to(device)
+        self.device = device 
+
+    def train(self, bool=True): 
+        super().train(bool)
+        self.likelihood.train(bool)
+
+    def eval(self):
+        super().eval()
+        self.likelihood.eval()
+
+    def fit(self):
+        """
+        See https://docs.gpytorch.ai/en/v1.13/examples/04_Variational_and_Approximate_GPs/SVGP_Regression_CUDA.html
+        """
+        self.train()
+        self.likelihood.train()
+
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
+
+        mll = gpytorch.mlls.VariationalELBO(self.likelihood, self, num_data=self.train_y.size(0))
+
+        for i in range(self.ntraining):
+            optimizer.zero_grad()
+            output = self(self.train_x)
+            loss = -mll(output, self.train_y)
+            loss.backward()
+            optimizer.step()
+
+        self.eval()
+        self.likelihood.eval()
+
+    def posterior(self, pred):  
+        mu = pred.mean
+        if self.standardize_y:
+            mu = self.scaler_y.unstandardize(mu)
+        self.pred.mu = mu   
+
+        if self.return_std:
+            std = pred.stddev
+            if self.standardize_y:
+                std = self.scaler_y.unscale(std)
+            self.pred.std = std 
+            self.pred.std_epistemic = std 
+            self.pred.std_aleatoric = torch.tensor(0.0)
+
+        if self.return_var:
+            var = pred.variance
+            if self.standardize_y:
+                var = self.scaler_y.unscale_var(var)
+            self.pred.var = var 
+        
+        if self.return_cov:
+            cov = pred.covariance_matrix
+            if self.standardize_y:
+                cov = self.scaler_y.unscale_cov_matrix(cov)
+            self.pred.cov = cov 
+
+        return self.pred
+
+    def predict(self, test_x, return_std=False, return_var=False, return_cov=False, grad=False):
+        x = test_x.float()
+        device = next(self.parameters()).device
+        self.to(device)
+
+        self.pred = Posterior()
+        self.return_std, self.return_var, self.return_cov = return_std, return_var, return_cov
+        
+        if self.normalize_x:
+            x = self.scaler_x.normalize(x)
+
+        with gpytorch.settings.max_preconditioner_size(100): 
+            with gpytorch.settings.cholesky_jitter(self.jitter):
+                if grad:
+                    with gpytorch.settings.fast_pred_var():
+                        self.posterior(self.likelihood(self(x))) 
+                        return self.pred    
+                else:
+                    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                        self.posterior(self.likelihood(self(x))) 
+                        return self.pred 
+                    
+    def get_training_data(self, device=None):
+        x = self.train_x 
+        y = self.train_y 
+
+        if self.normalize_x:
+            x = self.scaler_x.unnormalize(x)
+
+        if self.standardize_y:
+            y = self.scaler_y.unstandardize(y)
+
+        if device != None:
+            x, y = x.to(device), y.to(device)
+
+        return x, y
+    
+    def update(self, new_x, new_y):
+        """Simple update"""
+        x, y = self.get_training_data()
+        device = x.device  
+        new_x = new_x.to(device)
+        new_y = new_y.to(device)
+
+        # Combine data
+        train_x = torch.cat((x, new_x), dim=-2)
+        train_y = torch.cat((y, new_y), dim=-1)
+        
+        self.fbest = torch.max(train_y) 
+        self.xbest = train_x[list(torch.where(train_y == self.fbest))] 
+
+        # Create new model with updated data
+        new_model = VariationalHomoscedasticGP(
+            train_x, train_y,
+            normalize_x=self.normalize_x,
+            standardize_y=self.standardize_y,
+            ntraining=self.ntraining,
+            nstarts=self.nstarts,
+            num_inducing=self.num_inducing
+        )
+        
+        # Copy the new model's attributes to self
+        self.__dict__.update(new_model.__dict__)
+        
+        try:
+            self.fit()
+        except Exception as e:
+            print(f"Warning: Retraining failed: {e}")
+            self.eval()
 
 class NoiselessGP(HomoscedasticGP): 
     def __init__(self, 
