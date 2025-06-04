@@ -46,7 +46,7 @@ def plotcontour(problem, borc, surrogate=False):
 
     # Steps for plotting 
     # NOTE model: [plot_steps = 50,  nsamples = int(1e2)] runtime: 15 hours
-    # NOTE VGP  : [plot_steps = 500, nsamples = int(5e3)] runtime: ???
+    # NOTE VGP  : [plot_steps = 500, nsamples = int(5e3)] runtime: 40 hours 
     plot_steps = 10
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
@@ -63,7 +63,7 @@ def plotcontour(problem, borc, surrogate=False):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e1)
+    nsamples = int(1e3)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -191,7 +191,7 @@ class Model():
         self.m = torch.zeros((self.x.size(0), 4)) 
 
         # 0.0 Initialise beam model    
-        n = 20 # num_elems
+        n = 10 # num_elems
         L = 12
         beam = Frame()  
         nodes = [[i*L/n, 0, 0] for i in range(n+1)]
@@ -369,7 +369,8 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)}      
+    # bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for plotting 
+    bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for bayesopt      
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
@@ -384,14 +385,6 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state  
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state
 
-    # x = problem.sample(nsamples=100)
-    # problem.model(x)
-    # print(problem.objectives())
-    # print(problem.constraints())
-    # print((problem.constraints() < 0).all(dim=1))
-
-    # plotcontour(problem, None)
-
     xi = problem.sample_xi(nsamples=int(1e2)).to(device)
     surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001) 
@@ -401,16 +394,22 @@ def bayesopt(ninitial, iters, n):
     # SurrogateIO.save(borc.surrogate, output_dir) 
     borc.surrogate = SurrogateIO.load(output_dir)
 
-    plotcontour(problem, borc, surrogate=True)     
+    # Plot constraint function 
+    # plotcontour(problem, None)
+    # plotcontour(problem, borc, surrogate=True)     
 
     # Monte Carlo solution 
-    # mc_steps = 2
-    # P_lower, P_upper = list(problem.param_bounds.values())[0]
-    # e_lower, e_upper = list(problem.param_bounds.values())[1]
-    # d_lower, d_upper = list(problem.param_bounds.values())[2]
-    # params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e1), obj_type="mean", con_type="prob", con_eps=0.001, output=False)
-    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True)                        
+    mc_steps = 10
+    P_lower, P_upper = list(problem.param_bounds.values())[0]
+    e_lower, e_upper = list(problem.param_bounds.values())[1]
+    d_lower, d_upper = list(problem.param_bounds.values())[2]
+    params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
+    xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True)  
+    # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True)      
+    # TODO verify objective function 
+    # TODO use optimisation rather than monte carlo                
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters) 

@@ -158,7 +158,6 @@ class GPModelIO:
             print(f"Loaded metadata: {metadata}")
 
         return model
-
     
 class HomoscedasticGP(gpytorch.models.ExactGP):
     def __init__(self, 

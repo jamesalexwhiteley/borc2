@@ -303,7 +303,7 @@ class Surrogate():
         
         return self.problem._monte_carlo( 
                     obj_fun=lambda x : self.predict_objectives(x)[0].mu.unsqueeze(1),
-                    con_fun=lambda x : self.predict_constraints(x)[0].mu.unsqueeze(1), # NOTE multiple constraints not implemented 
+                    con_fun=lambda x : [cons.mu.unsqueeze(1) for cons in self.predict_constraints(x)], 
                     surrogate=True,
                     params=params, 
                     nsamples=nsamples, 

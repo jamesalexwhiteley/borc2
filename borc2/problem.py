@@ -362,7 +362,7 @@ class Problem():
         """
         Simple monte carlo implementation using full factorial sampling.
 
-        NOTE needs to be tested with multiple constraints (!)
+        NOTE single objective optimisation only 
 
         Parameters 
         ---------- 
@@ -408,6 +408,9 @@ class Problem():
 
             # estimate constraint(s)
             cm = con_fun(m)
+            if surrogate: 
+                cm = torch.cat(cm, dim=1)
+
             if len(self.con_fun) == 0:
                 constraint = True
             elif con_type == "prob":
@@ -440,7 +443,7 @@ class Problem():
         ind = max_index.numpy()
 
         if output: 
-            print(f"Max Objective: {max_val.item():.4f} | Optimal x : {ffs[ind].numpy()}")   
+            print(f"Max Objective: {max_val.item():.4f} | Optimal x: {ffs[ind].numpy()}")   
         return ffs[ind].unsqueeze(0), max_val
     
     def monte_carlo(self, 
