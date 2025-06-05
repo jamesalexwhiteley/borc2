@@ -38,7 +38,7 @@ def plotcontour(problem, borc):
     # PI = prob[0].view(X.shape).detach()
 
     # surrogate
-    steps = 10
+    steps = 5
     x = torch.linspace(0, 1, steps)
     y = torch.linspace(0, 1, steps)
     X, Y = torch.meshgrid(x, y, indexing='ij')
@@ -138,10 +138,10 @@ def bayesopt(ninitial, iters, n):
     SurrogateIO.save(borc.surrogate, output_dir) 
     # borc.surrogate = SurrogateIO.load(output_dir) 
 
-    # params=(torch.linspace(0.0, 1.0, steps=21), torch.linspace(0.0, 1.0, steps=21)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(5e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0, 0.7] 
+    # params=(torch.linspace(0.0, 1.0, steps=101), torch.linspace(0.0, 1.0, steps=101)) 
+    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(5e2), obj_type="mean", con_type="prob", con_eps=0.1) # [0, 0.75] 8336.85
     # _, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    plotcontour(problem, borc)
+    # plotcontour(problem, borc)
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters, ) 
@@ -161,5 +161,5 @@ def bayesopt(ninitial, iters, n):
 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 50, 10, 1 
+    ninitial, iters, n = 500, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

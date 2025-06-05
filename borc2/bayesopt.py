@@ -190,30 +190,13 @@ class Borc():
 
     def step(self, new_x=None): 
         """
-        get (new_x, new_y) then update the GP models
+        Update the GP models
 
         """      
-        # if new_x != None: 
-        #     self.fbest, self.xbest = self.surrogate.update(new_x)
-        # else: 
-        #     self.fbest, self.xbest = self.surrogate.update(self.new_x)
         if new_x != None: 
             self.surrogate.update(new_x)
         else: 
-            self.surrogate.update(self.new_x)
-
-    # def optimize(self, iters=10, acq_iters=20, nstarts=5, output=False):
-    #     """
-    #     Run the optimization 
-
-    #     """
-    #     print(f"Bayesian Optimization | Num objectives = {len(self.surrogate.objective_gps)}, Num constraints = {len(self.surrogate.constraint_gps)}")
-        
-    #     for i in range(iters):
-    #         if output:
-    #             # print(f"Iter: {i + 1}/{iters} | Max Objective: {self.fbest},  Optimal x : {self.xbest}")
-    #         self.optimize_acq(acq_iters, nstarts) 
-    #         self.step()      
+            self.surrogate.update(self.new_x)     
 
     def rbo(self, x, nsamples=int(5e2), output=True, return_vals=False, return_posterior=False):
         """

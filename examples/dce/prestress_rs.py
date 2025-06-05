@@ -378,7 +378,7 @@ def bayesopt(ninitial, iters, n):
                         [0.5*(20)**2,      (20)**2]])
     dist = MultivariateNormal(mu, cov) 
 
-    problem.set_bounds(bounds, padding=0.05) 
+    problem.set_bounds(bounds) 
     problem.set_dist(dist) 
     problem.add_model(model) 
     problem.add_objectives([model.f]) 
@@ -404,12 +404,13 @@ def bayesopt(ninitial, iters, n):
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
     params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
-    xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True)
     xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
-    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True)  
-    # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True)      
+    borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+    #      
     # TODO verify objective function 
-    # TODO use optimisation rather than monte carlo                
+    xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) # TODO fix borc.constrained_optimize_acq
 
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters) 
@@ -422,7 +423,7 @@ def bayesopt(ninitial, iters, n):
     #     # new_x <- random search 
     #     borc.step(new_x=problem.sample()) 
 
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+    #     # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
     #     if i % n == 0: 
     #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
     #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 

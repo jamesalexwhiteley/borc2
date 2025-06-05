@@ -15,39 +15,44 @@ class Problem():
         self.param_bounds = None 
         self.param_dist = None 
 
-    # def set_bounds(self, param_bounds):
-    #     """ 
-    #     Set bounds on deterministic parameters 
-
-    #     Parameters
-    #     ----------
-    #     param_bounds : dict of {str : tuple}
-    #         parameter name and associated upper and lower bound 
-
-    #     """ 
-    #     for key in param_bounds:
-    #         param_bounds[key] = torch.tensor(param_bounds[key]) # convert dict values to torch.tensor 
-    #     self.param_bounds = param_bounds 
-
-    def set_bounds(self, param_bounds, padding=0.2):
+    def set_bounds(self, param_bounds):
         """ 
-        Set bounds on deterministic parameters  
+        Set bounds on deterministic parameters 
 
         Parameters
         ----------
         param_bounds : dict of {str : tuple}
             parameter name and associated upper and lower bound 
+
         """ 
-        padding_copy = padding
+        for key in param_bounds:
+            param_bounds[key] = torch.tensor(param_bounds[key]) # convert dict values to torch.tensor 
+        self.param_bounds = param_bounds 
+
+    def _get_padded_bounds(self, padding=0.2):
+        """
+        Get padded bounds for training data generation
+        
+        Parameters
+        ----------
+        padding : float
+            fraction of range to add as padding on each side
+            
+        Returns
+        -------
+        dict
+            padded bounds for training data sampling
+        """
         padded_bounds = {}
-        for key, (lower, upper) in param_bounds.items():
+        for key, bounds in self.param_bounds.items():
+            lower, upper = bounds
             range_val = upper - lower
-            padding = padding_copy * range_val 
-            padded_lower = lower - padding
-            padded_upper = upper + padding
+            padding_amount = padding * range_val 
+            padded_lower = lower - padding_amount
+            padded_upper = upper + padding_amount
             padded_bounds[key] = torch.tensor((padded_lower, padded_upper))
         
-        self.param_bounds = padded_bounds
+        return padded_bounds
 
     def set_dist(self, param_dist): 
         """ 

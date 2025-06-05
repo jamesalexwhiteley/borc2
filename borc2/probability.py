@@ -210,8 +210,8 @@ class MultivariateNormal(torch.distributions.MultivariateNormal):
         max_values = []
         
         for i in range(self.ndim):
-            min_values.append(self.mu[i] - 4 * self.cov[i][i])  
-            max_values.append(self.mu[i] + 4 * self.cov[i][i])   
+            min_values.append(self.mu[i] - 3 * self.cov[i][i])  
+            max_values.append(self.mu[i] + 3 * self.cov[i][i])   
         
         min_values = torch.tensor(min_values)
         max_values = torch.tensor(max_values)

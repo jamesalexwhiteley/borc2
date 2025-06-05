@@ -90,7 +90,8 @@ class Surrogate():
                  ntraining=100, 
                  nstarts=5,
                  sample_method='sobol',
-                 dtype=torch.float):
+                 dtype=torch.float, 
+                 training_padding=0.1):
         """
         A GP surrogate model for problem class.  
 
@@ -115,6 +116,7 @@ class Surrogate():
         self.name = "GP"
         self.device = "cpu"
         self.dtype = dtype 
+        self.training_padding=training_padding
         self.x = None 
         self.m = None 
         self.f = None 
@@ -175,7 +177,7 @@ class Surrogate():
             self.m = to_device(self.m, self.device)
             self.f = to_device(self.f, self.device)
             self.g = to_device(self.g, self.device)
-
+    
     def build(self, nsamples, normalize_x=True, standardize_y=True, sample_method="sobol"):
         """
         Build GPs of problem objectives and constraints by running the model 
@@ -184,18 +186,33 @@ class Surrogate():
         ----------
         nsamples : int
             number of input points used to model gps 
+        normalise_x : bool
+            whether to normalise input features
+        standardise_y : bool  
+            whether to standardise output targets
+        sample_method : str
+            sampling method for generating training points
 
         """
         self.fbest, self.xbest = None, None 
+        
+        # Temporarily use padded bounds for training data generation
+        original_bounds = self.problem.param_bounds.copy()
+        padded_bounds = self.problem._get_padded_bounds(padding=self.training_padding)
+        self.problem.param_bounds = padded_bounds
+        
         with torch.no_grad(): 
-            # look for a feasible point to initialize archive 
+            # look for a feasible point to initialise archive 
             for i in range(10):
                 self.run_model_initial(nsamples=nsamples, method=sample_method)
                 self.get_best()
                 if self.fbest != None:
                     break 
-                elif i == 10:
+                elif i == 9: 
                     raise ValueError("After 10 attempts, could not find an initialization with at least one feasible point")
+        
+        # Restore original bounds for optimisation
+        self.problem.param_bounds = original_bounds
                 
         for i, _ in enumerate(self.problem.obj_fun): 
             y = self.f[:, i]

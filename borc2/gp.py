@@ -94,29 +94,102 @@ class Posterior():
         
 #         return model 
 
+# class GPModelIO:
+#     @staticmethod
+#     def save(model, output_path, metadata=None):
+#         """
+#         Save GP model, and optional metadata.
+#         """
+#         save_dict = {
+#             'model_class': model.__class__,
+#             'model_init_args': {
+#                 'normalize_x': model.normalize_x,
+#                 'standardize_y': model.standardize_y,
+#                 'ntraining': model.ntraining,
+#                 'nstarts': model.nstarts,
+#                 'num_inducing': model.num_inducing,
+#             },
+#             'model_state_dict': model.state_dict(),
+#             'likelihood_state_dict': model.likelihood.state_dict(),
+#             'train_x': model.train_x,
+#             'train_y': model.train_y,
+#             'scaler_x': model.scaler_x,
+#             'scaler_y': model.scaler_y,
+#             'device': model.device,
+#         }
+
+#         if metadata:
+#             save_dict['metadata'] = metadata
+
+#         torch.save(save_dict, output_path)
+
+#     @staticmethod
+#     def load(output_path):
+#         """
+#         Load GP model.
+#         """
+#         if not os.path.exists(output_path):
+#             raise FileNotFoundError(f"No file found at {output_path}")
+        
+#         checkpoint = torch.load(output_path, weights_only=False)
+
+#         model_class = checkpoint['model_class']
+#         train_x = checkpoint['train_x']
+#         train_y = checkpoint['train_y']
+#         model_init_args = checkpoint['model_init_args']
+
+#         model = model_class(
+#             train_x=train_x,
+#             train_y=train_y,
+#             **model_init_args
+#         )
+
+#         model.load_state_dict(checkpoint['model_state_dict'])
+#         model.likelihood.load_state_dict(checkpoint['likelihood_state_dict'])
+#         model.scaler_x = checkpoint['scaler_x']
+#         model.scaler_y = checkpoint['scaler_y']
+#         model.device = checkpoint['device']
+
+#         model.cuda(model.device)
+#         model.eval()
+
+#         metadata = checkpoint.get('metadata', {})
+#         if metadata:
+#             print(f"Loaded metadata: {metadata}")
+
+#         return model
+
 class GPModelIO:
     @staticmethod
     def save(model, output_path, metadata=None):
         """
-        Save GP model, and optional metadata.
+        Save GP model and optional metadata.
+        Only saves attributes that exist on the model.
         """
+        # Core required attributes
         save_dict = {
             'model_class': model.__class__,
-            'model_init_args': {
-                'normalize_x': model.normalize_x,
-                'standardize_y': model.standardize_y,
-                'ntraining': model.ntraining,
-                'nstarts': model.nstarts,
-                'num_inducing': model.num_inducing,
-            },
             'model_state_dict': model.state_dict(),
             'likelihood_state_dict': model.likelihood.state_dict(),
             'train_x': model.train_x,
             'train_y': model.train_y,
-            'scaler_x': model.scaler_x,
-            'scaler_y': model.scaler_y,
             'device': model.device,
         }
+        
+        # Optional model initialization arguments
+        model_init_args = {}
+        init_attrs = ['normalize_x', 'standardize_y', 'ntraining', 'nstarts', 'num_inducing']
+        for attr in init_attrs:
+            if hasattr(model, attr):
+                model_init_args[attr] = getattr(model, attr)
+        
+        if model_init_args:
+            save_dict['model_init_args'] = model_init_args
+        
+        # Optional scalers
+        for scaler_attr in ['scaler_x', 'scaler_y']:
+            if hasattr(model, scaler_attr):
+                save_dict[scaler_attr] = getattr(model, scaler_attr)
 
         if metadata:
             save_dict['metadata'] = metadata
@@ -136,20 +209,22 @@ class GPModelIO:
         model_class = checkpoint['model_class']
         train_x = checkpoint['train_x']
         train_y = checkpoint['train_y']
-        model_init_args = checkpoint['model_init_args']
+        
+        # Use model_init_args if available, otherwise create model with just train data
+        model_init_args = checkpoint.get('model_init_args', {})
+        model = model_class(train_x=train_x, train_y=train_y, **model_init_args)
 
-        model = model_class(
-            train_x=train_x,
-            train_y=train_y,
-            **model_init_args
-        )
-
+        # Load state dictionaries
         model.load_state_dict(checkpoint['model_state_dict'])
         model.likelihood.load_state_dict(checkpoint['likelihood_state_dict'])
-        model.scaler_x = checkpoint['scaler_x']
-        model.scaler_y = checkpoint['scaler_y']
+        
+        # Restore scalers if they were saved
+        for scaler_attr in ['scaler_x', 'scaler_y']:
+            if scaler_attr in checkpoint:
+                setattr(model, scaler_attr, checkpoint[scaler_attr])
+        
+        # Set device and mode
         model.device = checkpoint['device']
-
         model.cuda(model.device)
         model.eval()
 

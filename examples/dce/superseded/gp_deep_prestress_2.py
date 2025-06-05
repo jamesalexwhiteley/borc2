@@ -302,7 +302,7 @@ def gaussian_process():
                         [        0.0,     0.7*1,    0.7*1,        1]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds, padding=0.1) 
+    problem.set_bounds(bounds) 
     problem.set_dist(dist)
     problem.add_model(model)
     problem.add_objectives([model.f])

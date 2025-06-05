@@ -21,7 +21,7 @@ device = 'cpu'
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
-def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
+def plotfig(model, problem, borc, points0, points1, new_x, new_xi):
 
     output_dir = 'figures'
     if not os.path.exists(output_dir):
@@ -74,10 +74,8 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     fig, ax1 = plt.subplots(figsize=(7, 6))
     # mean 
     mu_true, prob_true = problem.rbo(x.unsqueeze(1), nsamples=int(1e4), output=False, return_vals=True)
-    opt_ind = torch.where(prob_true[0] > 0.95)[0][0]
+    opt_ind = torch.where(prob_true[0] > 0.98)[0][0]
     opt_true_x, opt_true_mu, opt_true_prob = x[opt_ind].cpu(), mu_true[opt_ind].cpu(), prob_true[0][opt_ind].cpu()
-    # ax1.scatter(opt_true_x, opt_true_mu, label='Optimal Point', color='white', marker='*', s=100, edgecolor='blue', zorder=10)
-    # ax1.axvline(x=opt_true_x, color='gray', linestyle='--', linewidth=1)
     ax1.plot(x.cpu(), mu_true.cpu(), label=r'True $\text{E}[f(x,\xi)]$', color='blue', linewidth=2)
     ax1.set_xlabel(r'$x$')
     ax1.set_ylabel(r'$\text{E}[f(x,\xi)]$', color='blue')
@@ -103,18 +101,17 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
 
     # acquisition 
     fig, ax1 = plt.subplots(figsize=(7, 6.5))
-    borc.acquisition = Acquisition(f="eEI", g="ePF", xi=problem.sample_xi(nsamples=int(1e4)).to(device), eps=0.05)
+    borc.acquisition = Acquisition(f="eEI", g="ePF", xi=problem.sample_xi(nsamples=int(1e4)).to(device), eps=0.02)
     acq_x = borc.eval_acquisition(x.unsqueeze(1)).detach()
     ax1.plot(x.cpu(), acq_x.cpu(), label=r'Acquisition function', color='#1f3d7a', linewidth=2)
     ax1.set_xlabel(r'$x$', fontsize=12)
     ax1.set_ylabel(r'$\alpha(x)$', fontsize=12)
-    # ax1.scatter(point_x[0].cpu(), borc.eval_acquisition(point_x[0].unsqueeze(0)).detach().cpu(), color='m', s=25, marker='o', label='Max acquisition', zorder=10) 
-    ax1.scatter(point_x[0].cpu(), borc.eval_acquisition(point_x[0].unsqueeze(0)).detach().cpu(), color='magenta', label='Max Acquisition', s=100, marker='*', edgecolors='k', zorder=10)
-    ax1.axvline(point_x[0].cpu(), color='gray', linestyle='--', linewidth=1) 
+    ax1.scatter(new_x.cpu(), borc.eval_acquisition(new_x).detach().cpu(), color='magenta', label='Max Acquisition', s=100, marker='*', edgecolors='k', zorder=10)
+    ax1.axvline(new_x.cpu(), color='gray', linestyle='--', linewidth=1) 
     ax1.legend(loc='lower right', frameon=True)
     # xi insert 
     ax_inset = inset_axes(ax1, width="40%", height="40%", loc='upper left') 
-    borc.acquisition = Acquisition(f="eMSE", x=point_x[0].unsqueeze(0), dist=problem.param_dist)
+    borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist) 
     acq_xi = borc.eval_acquisition(xi.unsqueeze(1)).detach()
     ax_inset.plot(xi.cpu(), acq_xi.cpu(), label=r'Acquisition $\alpha(\xi)$', color='#1f3d7a', linewidth=2)
     ax_inset.set_xlabel(r'$\xi$', fontsize=10)
@@ -122,9 +119,8 @@ def plotfig(model, problem, borc, points0, points1, point_x, point_xi):
     ax_inset.tick_params(axis='both', labelsize=8)
     ax_inset.yaxis.tick_right()
     ax_inset.yaxis.set_label_position("right")
-    # ax_inset.scatter(point_xi[0].cpu(), borc.eval_acquisition(point_xi[0].unsqueeze(0)).detach().cpu(), color='m', marker='.', label='Max acquisition', zorder=10) 
-    ax_inset.scatter(point_xi[0].cpu(), borc.eval_acquisition(point_xi[0].unsqueeze(0)).detach().cpu(), color='magenta', label='Max Acquisition', s=50, marker='*', edgecolors='k', zorder=10)
-    ax_inset.axvline(point_xi[0].cpu(), color='gray', linestyle='--', linewidth=1) 
+    ax_inset.scatter(new_xi.cpu(), borc.eval_acquisition(new_xi).detach().cpu(), color='magenta', label='Max Acquisition', s=50, marker='*', edgecolors='k', zorder=10)
+    ax_inset.axvline(new_xi.cpu(), color='gray', linestyle='--', linewidth=1) 
     plt.savefig(os.path.join(output_dir, f'analytic_acquisition_0.png'), dpi=600)
     plt.show()
 
@@ -150,15 +146,15 @@ def bayesopt(ninitial, iters):
     cov = torch.tensor([[1.]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds, padding=0)
+    problem.set_bounds(bounds)
     problem.set_dist(dist)
     problem.add_model(model)
     problem.add_objectives([model.f])
     problem.add_constraints([model.g])
 
-    xi = problem.sample_xi(nsamples=int(1e4)).to(device)
-    surrogate = Surrogate(problem, ntraining=100, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
+    xi = problem.sample_xi(nsamples=int(1e3)).to(device)
+    surrogate = Surrogate(problem, ntraining=100, nstarts=5, training_padding=0.0) 
+    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.02) 
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0.0])) 
@@ -166,7 +162,7 @@ def bayesopt(ninitial, iters):
     points0, _ = borc.surrogate.objective_gps[0].get_training_data()
     points1 = []
 
-    for _ in range(iters):
+    for i in range(iters):
 
         borc.acquisition = Acquisition(f="eMU", xi=xi)  
         _, borc.fbest = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_x=True, lr=0.2) 
@@ -174,18 +170,20 @@ def bayesopt(ninitial, iters):
         borc.acquisition = Acquisition(f="eEI", g="ePF", xi=xi) 
         new_x, max_acq_x = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_x=True, lr=0.2) 
  
-        borc.acquisition = Acquisition(f="eMSE", x=new_x, dist=problem.param_dist)  
-        new_xi, max_acq_xi = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_xi=True, lr=0.1)
+        borc.acquisition = Acquisition(f="eWMSE", x=new_x, dist=problem.param_dist)  
+        new_xi, max_acq_xi = borc.batch_optimize_acq(iters=200, nstarts=5, optimize_xi=True, lr=0.2)
         
         points1.append(torch.cat([new_x, new_xi], dim=1)) 
+        plotfig(model, problem, borc, points0, torch.cat(points1), new_x, new_xi) # visualise BEFORE updating surrogate 
+
         borc.step(new_x=torch.cat([new_x, new_xi], dim=1)) 
         print(f"new_x : {torch.cat([new_x, new_xi], dim=1)}") 
 
-        plotfig(model, problem, borc, points0, torch.cat(points1), torch.tensor((new_x, max_acq_x)), torch.tensor((new_xi, max_acq_xi)))
-
+    plotfig(model, problem, borc, points0, torch.cat(points1), new_x, new_xi) 
+        
     return None, None 
 
 
 if __name__ == "__main__": 
-    ninitial, iters = 500, 10
+    ninitial, iters = 15, 20 
     xopt, res = bayesopt(ninitial, iters) 

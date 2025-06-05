@@ -149,21 +149,19 @@ class Acquisition():
         return torch.tensor([1.0]) 
     
     # ================================= # acquisiton functions with environmental variables, i.e., E[f(x,xi)] ================================= #   
-    def posterior_mean_monte_carlo(self, x, gp, fbest):
+    def posterior_mean_monte_carlo(self, x, gp, fbest): # eMU
         """
-        μ(x) + βσ(x), where 
-        μ(x) = E[f(x,xi)], σ^2(x) = Var[f(x,xi)]
+        μ(x) = E[f(x,xi)]
         
         """
         batch_x = gen_batch_data(x, self.xi) 
         mu, _ = self.gp_predict(batch_x, gp) 
         return mu.mean(dim=1) 
     
-    def upper_confidence_bound_monte_carlo(self, x, gp, fbest):
+    def upper_confidence_bound_monte_carlo(self, x, gp, fbest): # eUCB
         """
-        E[max(μ(x)-μ*, 0)]
-
-        See Arendt et al. "Objective-Oriented Sequential Sampling for Simulation Based Robust Design Considering Multiple Sources of Uncertainty." J Mec Des. 2013.
+        μ(x) + βσ(x), where 
+        μ(x) = E[f(x,xi)], σ^2(x) = Var[f(x,xi)]
 
         """
         batch_x = gen_batch_data(x, self.xi)
@@ -171,7 +169,7 @@ class Acquisition():
         mu, std = pred.mu.mean(dim=1), pred.std.mean(dim=1)  
         return mu + self.beta * std 
 
-    def expected_improvement_monte_carlo(self, x, gp, fbest):
+    def expected_improvement_monte_carlo(self, x, gp, fbest): # eEI
         """
         E[max(μ(x)-μ*, 0)]
 
@@ -184,7 +182,7 @@ class Acquisition():
         z = (mu - fbest) / torch.clamp(std, min=self.min) 
         return (mu - fbest) * self.normal.cdf(z) + std * torch.exp(self.normal.log_prob(z)) 
 
-    def probability_of_feasibility_monte_carlo(self, x, gp, fbest):
+    def probability_of_feasibility_monte_carlo(self, x, gp, fbest): # ePF
         """
         P[g(x,xi)<0]  = '\'int Phi(-mu/std) p(xi)dxi
 
@@ -197,15 +195,15 @@ class Acquisition():
         p = torch.distributions.Normal(mu, std).cdf(torch.tensor([0.0]).to(mu.device)) 
         return p.mean(dim=1) - 1 + self.eps 
     
-    def mean_squared_error(self, xi, gp, fbest):
+    def mean_squared_error(self, xi, gp, fbest): # eMSE
         """
         σ^2(xi) 
         
         """       
         eval_x = gen_batch_data(self.x, xi).squeeze(0)
-        return gp.predict(eval_x, return_std=True, grad=True).std
+        return gp.predict(eval_x, return_std=True, grad=True).std**2
     
-    def weighted_mean_squared_error(self, xi, gp, fbest):
+    def weighted_mean_squared_error(self, xi, gp, fbest): # eWMSE
         """ 
         p(xi) σ^2(xi) 
         
