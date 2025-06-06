@@ -7,7 +7,7 @@ import math
 import matplotlib.gridspec as gridspec
 
 from borc2.problem import Problem 
-from borc2.gp import VariationalHomoscedasticGP
+from borc2.gp import VariationalHomoscedasticGP, HomoscedasticGP
 from borc2.surrogate import Surrogate, SurrogateIO
 from borc2.acquisition import Acquisition
 from borc2.bayesopt import Borc
@@ -22,7 +22,9 @@ from pybeamnlfea.model.boundary import BoundaryCondition
 from pybeamnlfea.model.load import NodalLoad, UniformLoad
 
 import warnings
-warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try another solved*")  
+warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try another solved*") 
+warnings.filterwarnings("ignore", message=r".*sigma away from each other at the closest*")   
+warnings.filterwarnings("ignore", message=r".*not bypass the constraint after 500 tentatives*")   
 
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
@@ -284,16 +286,11 @@ class Model():
     def f(self):                                                                      
         # beam cost f(P,d)
         P, fp, rho = self.x[:, 0] * 1e6, 0.8 * 1860e6, 7850 # N, N/m, kg/m3
-        l, d, b = 20, self.x[:, 2], self.x[:, 5] 
-        concrete = 145 * (l * b * d)
-        tendons = 9000/1000 * (rho * l * P / fp)                                  # TODO is p cost correct?
-        formwork = 36 * (2 * l*d + 2 * d*b)  
-        # print((l * b * d))
-        # print((rho * l * P / fp))
-        # print(concrete)
-        # print(formwork)
-        # print(tendons)                                       
-        return -(concrete + tendons + formwork)
+        l, d, b = 12, self.x[:, 2], self.x[:, 5] 
+        concrete = 145 * (l * b * d) 
+        tendons = 6000/1000 * (rho * l * (P / fp))                                        
+        formwork = 36 * (2 * l * d) # side forms                              
+        return -(concrete + tendons + formwork) 
         
     def g1(self):                                                                              
         # TRANSFER loadcase, max HOGGING, TOP fiber: σ = P/A + M/Z
@@ -382,56 +379,49 @@ def bayesopt(ninitial, iters, n):
     problem.set_dist(dist) 
     problem.add_model(model) 
     problem.add_objectives([model.f]) 
-    problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state  
-    problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state
+    problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state 
+    problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state 
 
     xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001) 
+    # surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
+    surrogate = Surrogate(problem, gp=HomoscedasticGP, ntraining=ninitial, nstarts=5) 
+    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001)                         
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    # borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
     # SurrogateIO.save(borc.surrogate, output_dir) 
-    borc.surrogate = SurrogateIO.load(output_dir)
+    # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Plot constraint function 
     # plotcontour(problem, None)
     # plotcontour(problem, borc, surrogate=True)     
 
-    # Monte Carlo solution 
-    mc_steps = 10
-    P_lower, P_upper = list(problem.param_bounds.values())[0]
-    e_lower, e_upper = list(problem.param_bounds.values())[1]
-    d_lower, d_upper = list(problem.param_bounds.values())[2]
-    params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
-    # problem.rbo(xopt, nsamples=int(1e3), return_vals=True)
-    xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
-    borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
-    #      
-    # TODO verify objective function 
-    xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) # TODO fix borc.constrained_optimize_acq
+    # # Monte Carlo solution                                                 
+    # mc_steps = 10
+    # P_lower, P_upper = list(problem.param_bounds.values())[0]
+    # e_lower, e_upper = list(problem.param_bounds.values())[1]
+    # d_lower, d_upper = list(problem.param_bounds.values())[2]
+    # params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps))  
+    # # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    # # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
+    # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
+    # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+                                                                                               
+    # BayesOpt used to sequentially sample [x,xi] points 
+    res = torch.ones(iters) 
+    for i in range(iters): 
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters) 
-    # for i in range(iters): 
+        # new_x <- random search 
+        borc.step(new_x=problem.sample()) 
 
-    #     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    #     # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
-    #     # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+        # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
+        if i % n == 0: 
+            xopt, _ = borc.constrained_optimize_acq(iters=1, nstarts=1, optimize_x=True) 
+            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    #     # new_x <- random search 
-    #     borc.step(new_x=problem.sample()) 
-
-    #     # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
-
-    # return xopt, res 
-    return None, None 
+    return xopt, res 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 5000, 1, 1 
+    ninitial, iters, n = 20, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

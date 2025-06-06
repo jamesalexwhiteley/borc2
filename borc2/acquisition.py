@@ -40,7 +40,7 @@ class Acquisition():
 
         # default params 
         self.k = 10
-        self.eps = 0.1
+        self.eps = 1.0
         self.efs = 1.0 
         self.beta = 1.5
         self.big = 1e6
@@ -184,9 +184,7 @@ class Acquisition():
 
     def probability_of_feasibility_monte_carlo(self, x, gp, fbest): # ePF
         """
-        P[g(x,xi)<0]  = '\'int Phi(-mu/std) p(xi)dxi
-
-        NOTE use with multiple constraints has not been implemented 
+        P[g(x,xi)<0]  = '\'int Phi(-mu/std) p(xi)dxis
 
         """
         batch_x = gen_batch_data(x, self.xi)
@@ -209,5 +207,5 @@ class Acquisition():
         
         """ 
         eval_x = gen_batch_data(self.x, xi).squeeze(0)
-        w = self.dist.log_prob(xi).exp()
-        return w * (gp.predict(eval_x, return_std=True, grad=True).std)
+        w = self.dist.log_prob(xi.cpu()).exp().to(xi.device)
+        return w * (gp.predict(eval_x, return_std=True, grad=True).std**2)

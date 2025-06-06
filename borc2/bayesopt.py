@@ -155,7 +155,7 @@ class Borc():
         # device 
         xpts = xpts.to(self.device)
         bounds = bounds.to(self.device)
-
+        
         # optimize 
         f = self.eval_acqf 
         g = self.eval_acqg 

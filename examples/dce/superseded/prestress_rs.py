@@ -199,7 +199,7 @@ def bayesopt(ninitial, iters, n):
                         [        0.0,     0.7*1,    0.7*1,        1]])
     dist = MultivariateNormal(mu, cov)
 
-    problem.set_bounds(bounds, padding=0.1) 
+    problem.set_bounds(bounds) 
     problem.set_dist(dist) 
     problem.add_model(model) 
     problem.add_objectives([model.f]) 
@@ -217,24 +217,21 @@ def bayesopt(ninitial, iters, n):
     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.1, output=False) # [0.2, 0.4] £830 ??
     # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    plotcontour(problem, borc)
+    # plotcontour(problem, borc)
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters) 
-    # for i in range(iters): 
+    # BayesOpt used to sequentially sample [x,xi] points 
+    res = torch.ones(iters) 
+    for i in range(iters): 
 
-    #     # params=(torch.linspace(0.1, 1.0, steps=10), torch.linspace(0.1, 1.0, steps=10)) 
-    #     # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e3), obj_type="mean", con_type="prob", con_eps=0.1) # ??
-    #     # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+        # new_x <- random search 
+        # borc.step(new_x=problem.sample()) 
 
-    #     # new_x <- random search 
-    #     borc.step(new_x=problem.sample()) 
-
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons 
+        if i % n == 0: 
+            xopt, _ = borc.constrained_optimize_acq(iters=int(2e2), nstarts=5, optimize_x=True) 
+            print(xopt)
+            # res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     # return xopt, res 
     return None, None 

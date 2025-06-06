@@ -45,18 +45,18 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g])
 
     xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    surrogate = Surrogate()
+    surrogate = Surrogate(problem)
     acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-    borc = Borc(problem, surrogate, acquisition) 
+    borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", xbest=problem.sample_x(), fbest=torch.tensor([0.0])) 
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
                                
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
     for i in range(iters):    
 
         # new_x = argmax_[x,xi] EI x PF
-        borc.acquisition = Acquisition(f="EI", g="PF", xi=xi)
+        borc.acquisition = Acquisition(f="EI", g="PF", xi=xi, eps=1.0)
         new_x, _ = borc.batch_optimize_acq(iters=50, nstarts=20) 
 
         # fbest = max_[x,xi] mu 
@@ -70,11 +70,10 @@ def bayesopt(ninitial, iters, n):
             borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
             xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
             res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     return xopt, res 
 
-
 if __name__ == "__main__": 
-    ninitial, iters, n = 200, 4, 1
+    ninitial, iters, n = 100, 4, 1
     xopt, res = bayesopt(ninitial, iters, n) 

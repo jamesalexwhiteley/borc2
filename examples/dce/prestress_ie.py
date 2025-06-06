@@ -23,58 +23,57 @@ def bayesopt(ninitial, iters, n):
 
     base_folder = os.path.join(os.getcwd(), "models")
     os.makedirs(base_folder, exist_ok=True)
-    output_dir  = os.path.join(base_folder, "prestress")
+    output_dir  = os.path.join(base_folder, "prestress_ie")
 
     problem = Problem()
     model = Model()
-    bounds = {"b": (0.1, 1.0), "h": (0.1, 1.0)} 
-    
-    mu = torch.tensor([27.5, 1.5, 1.5, 1.5]) 
-    cov = torch.tensor([[(3.75)**0.5,      0.0,      0.0,       0.0],
-                        [        0.0,         1,    0.9*1,    0.7*1],
-                        [        0.0,     0.9*1,        1,    0.7*1],
-                        [        0.0,     0.7*1,    0.7*1,        1]])
-    dist = MultivariateNormal(mu, cov)
+    # bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for plotting 
+    bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for bayesopt      
 
-    problem.set_bounds(bounds)
-    problem.set_dist(dist)
-    problem.add_model(model)
-    problem.add_objectives([model.f])
-    problem.add_constraints([model.g])
+    # Uncertain parameters: ground stiffness for two pile groups
+    mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
+    cov = torch.tensor([[    (20)**2,  0.5*(20)**2],    # COV = 30%, correlation = 0.5              
+                        [0.5*(20)**2,      (20)**2]])
+    dist = MultivariateNormal(mu, cov) 
 
-    xi = problem.sample_xi(nsamples=int(2e2)).to(device)
-    surrogate = Surrogate(problem, ntraining=200, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1) 
+    problem.set_bounds(bounds) 
+    problem.set_dist(dist) 
+    problem.add_model(model) 
+    problem.add_objectives([model.f]) 
+    problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state  
+    problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state
+
+    xi = problem.sample_xi(nsamples=int(1e2)).to(device)
+    surrogate = Surrogate(problem, ntraining=ninitial, nstarts=5) 
+    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001) 
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="sobol", max_acq=torch.tensor([0])) 
-    acq_iters=50, acq_starts=10
+    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
     for i in range(iters):    
 
         # new_x = argmax_[x,xi] EI x PF
-        borc.acquisition = Acquisition(f="EI", g="PF", xi=xi)
-        new_x, _ = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts) 
+        borc.acquisition = Acquisition(f="EI", g="PF", xi=xi, eps=1.0)
+        new_x, _ = borc.batch_optimize_acq(iters=50, nstarts=5) 
 
         # fbest = max_[x,xi] mu 
         borc.acquisition = Acquisition(f="MU") 
-        _, borc.fbest = borc.batch_optimize_acq(iters=acq_iters, nstarts=acq_starts) 
+        _, borc.fbest = borc.batch_optimize_acq(iters=50, nstarts=5) 
         borc.step(new_x=new_x) 
         # print(f"new_x : {new_x}") 
 
-        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilon 
+        # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m 
         if i % n == 0: 
-            borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.1)
-            xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
+            borc.acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001)
+            xopt, _ = borc.constrained_optimize_acq(iters=50, nstarts=1, optimize_x=True) 
             res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-            # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
     return xopt, res   
 
-
 if __name__ == "__main__": 
 
-    ninitial, iters, n = 100, 400, 1 
+    ninitial, iters, n = 20, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 

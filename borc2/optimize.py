@@ -1,5 +1,6 @@
 import torch
 import nevergrad as ng
+import numpy as np
 
 import warnings
 warnings.filterwarnings("ignore", message=r".*Initial solution argument*")  
@@ -62,30 +63,31 @@ def torch_optim(f, x, iters, bounds, optimiser='ADAM', lr=0.1):
 # ============================================= 
 def CMA_ES(f, g, x, iters, bounds):
     """
-    Constrained optimisation using CMA-ES from Nevergrad  
-
+    Constrained optimisation using CMA-ES from Nevergrad
     """
-    device = x.device 
+    device = x.device
     b0, b1 = bounds[:, 0].cpu().flatten().numpy(), bounds[:, 1].cpu().flatten().numpy()
-
-    # objective 
+    
+    # ensure initial point is within bounds
+    x_numpy = x.cpu().flatten().numpy()
+    x_numpy = np.clip(x_numpy, b0, b1)
+    
+    # objective
     def f2(x):
         x_tensor = torch.tensor(x, device=device).unsqueeze(0)
         return -f(x_tensor).detach().flatten().item()
-
-    # constraint 
+    
+    # constraint
     def g2(x):
         x_tensor = torch.tensor(x, device=device).unsqueeze(0)
-        return all(g(x_tensor).detach() >= 0)
-
-    # optimize  
-    parametrization = ng.p.Array(shape=x.shape).set_bounds(lower=b0, upper=b1) 
-    parametrization.register_cheap_constraint(g2) # rejection sampling 
-    optimizer = ng.optimizers.CMA(parametrization, budget=iters) 
-    res = optimizer.minimize(f2)  
-
+        return (g(x_tensor).detach() >= 0).all().item()
+    
+    # optimize 
+    parametrization = ng.p.Array(init=x_numpy).set_bounds(lower=b0, upper=b1)
+    parametrization.register_cheap_constraint(g2)  # rejection sampling
+    
+    optimizer = ng.optimizers.CMA(parametrization, budget=iters)
+    res = optimizer.minimize(f2)
+    
     x = torch.tensor(res.value).unsqueeze(0).to(device)
-
     return x, f(x)
-
-

@@ -143,23 +143,21 @@ def bayesopt(ninitial, iters, n):
     # _, _ = problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
     # plotcontour(problem, borc)
 
-    # # BayesOpt used to sequentially sample [x,xi] points 
-    # res = torch.ones(iters, ) 
-    # for i in range(iters): 
+    # BayesOpt used to sequentially sample [x,xi] points 
+    res = torch.ones(iters, ) 
+    for i in range(iters): 
 
-    #     # new_[x,xi] <- random search 
-    #     borc.step(new_x=problem.sample()) 
+        # new_[x,xi] <- random search 
+        borc.step(new_x=problem.sample()) 
 
-    #     # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons
-    #     if i % n == 0: 
-    #         xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
-    #         res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
-    #         # print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+        # argmax_x E[f(x,xi)] s.t. P[g(x,xi)<0]>1-epsilons
+        if i % n == 0: 
+            xopt, _ = borc.constrained_optimize_acq(iters=int(1e2), nstarts=4, optimize_x=True) 
+            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-    # return xopt, res 
-    return None, None 
-
+    return xopt, res 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 500, 10, 1 
+    ninitial, iters, n = 100, 10, 1 
     xopt, res = bayesopt(ninitial, iters, n) 
