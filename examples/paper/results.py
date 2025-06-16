@@ -10,12 +10,12 @@ warnings.filterwarnings("ignore", message=r".*You are using*")
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 
-from branin_rs import bayesopt as bayesopt_rs
-from branin_ei import bayesopt as bayesopt_ei 
-from branin_er import bayesopt as bayesopt_er 
-# from prestress_rs import bayesopt as bayesopt_rs
-# from prestress_ei import bayesopt as bayesopt_ei
-# from prestress_er import bayesopt as bayesopt_er
+# from branin_rs import bayesopt as bayesopt_rs
+# from branin_ei import bayesopt as bayesopt_ei 
+# from branin_er import bayesopt as bayesopt_er 
+from prestress_rs import bayesopt as bayesopt_rs
+from prestress_ei import bayesopt as bayesopt_ei
+from prestress_er import bayesopt as bayesopt_er
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -42,7 +42,7 @@ def plotdata(d, x, data):
     show_alpha = 0.15 if data.shape[0] > 10 else 0.3
     for i in range(n_show):
         individual_error = error[i].numpy()
-        label_run = 'Sample runs' if i == 0 else None  # Only label the first one
+        label_run = 'Sample runs' if i == 0 else None  # only label first 
         plt.plot(x, individual_error, '-', color=colours[d], 
                 alpha=show_alpha, linewidth=1, label=label_run)
 
@@ -55,9 +55,7 @@ def plotdata(d, x, data):
     
     # Markers
     plt.scatter(x, p50, color=colours[d], s=30, edgecolor=colours[d], label="Data points")
-
-    # plt.xlim([5, 50])
-    # plt.ylim([-1000, 2500])
+    # plt.ylim([0, 2000])
 
     # Background lines 
     plt.axhline(y=0.0, color='#666666', linestyle='-', linewidth=1, alpha=0.7)
@@ -77,77 +75,92 @@ def plotfig(DATA):
     x = torch.linspace(1, DATA.size(2), int(DATA.size(2)/N))
     for d, data in enumerate(DATA):
         plotdata(d, x, data)
-                
+
 def scriptloader(batch_n, fun, DATA):
     for i in range(RUNS):
         print(f"Batch No. {batch_n}, Run No. {i}")
         try:
+            # Add memory cleanup
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+            
             _, data = fun(NINITIAL, ITERS, N) 
+            DATA[batch_n, i, :] = data
+            
+            # Save after each run to avoid losing progress
+            if i % 5 == 0:  # Save every 5 runs
+                torch.save(DATA, file_path)
+                # print(f"Checkpoint saved at run {i}")
+                
         except Exception as e:
-            print(f"Error occurred in run {i} with function {fun}: {e}")
-            data = DATA[batch_n, i-1, :]
-            pass 
-        DATA[batch_n, i, :] = data 
+            print(f"Error occurred in run {i} with function {fun.__name__}: {e}")
+            import traceback
+            traceback.print_exc()  # Print full error traceback
+            
+            # Use previous run's data as fallback
+            if i > 0:
+                DATA[batch_n, i, :] = DATA[batch_n, i-1, :]
+            else:
+                DATA[batch_n, i, :] = torch.zeros(ITERS)  # or some default
 
 if __name__ == "__main__":
 
-    # ======================================== #  
-    # branin   
-    # ======================================== #  
-    functions = [bayesopt_rs, bayesopt_er, bayesopt_ei] 
-    names = ['RS', 'EIxPF-WSE', 'EIxPF']
-    name = 'branin'
-    y_optimal = 8330
-    BATCHS = len(functions) 
-    RUNS = 10 # runs (of each algorithm)
-    ITERS = 50 # iterations (on each run)
-    NINITIAL = 10 # initial points (on each run)
-    N = 2 # test every nth iters
-    DATA = torch.ones(BATCHS, RUNS, ITERS)
-
-    # filepath 
-    if not os.path.exists('data'): 
-        os.makedirs('data') 
-    file_path = os.path.join('data', 'branin.pt') 
-
-    # # scripts 
-    # for j, fun in enumerate(functions): 
-    #     tic() 
-    #     scriptloader(j, fun, DATA)  
-    #     torch.save(DATA, file_path) 
-    #     toc() 
-
-    # load data  
-    DATA = torch.load(file_path) 
-    plotfig(DATA) 
-
     # # ======================================== #  
-    # # prestress   
+    # # branin   
     # # ======================================== #  
-    # # functions = [bayesopt_rs, bayesopt_rei, bayesopt_ei]
+    # functions = [bayesopt_rs, bayesopt_er, bayesopt_ei] 
     # names = ['RS', 'EIxPF-WSE', 'EIxPF']
-    # name = 'prestressed'
-    # y_optimal = -830
-    # # BATCHS = len(functions)
-    # RUNS = 50 # runs (of each algorithm)
+    # name = 'branin'
+    # y_optimal = 8330
+    # BATCHS = len(functions) 
+    # RUNS = 10 # runs (of each algorithm)
     # ITERS = 50 # iterations (on each run)
-    # NINITIAL = 5 # initial points (on each run)
-    # N = 2 # test every nth iter
-    # # DATA = torch.ones(BATCHS, RUNS, ITERS)
+    # NINITIAL = 10 # initial points (on each run)
+    # N = 2 # test every nth iters
+    # DATA = torch.ones(BATCHS, RUNS, ITERS)
 
     # # filepath 
     # if not os.path.exists('data'): 
     #     os.makedirs('data') 
-    # file_path = os.path.join('data', 'prestress.pt') 
+    # file_path = os.path.join('data', 'branin.pt') 
 
     # # # scripts 
     # # for j, fun in enumerate(functions): 
     # #     tic() 
-    # #     scriptloader(j, fun, DATA) 
+    # #     scriptloader(j, fun, DATA)  
     # #     torch.save(DATA, file_path) 
     # #     toc() 
- 
-    # # load data 
+
+    # # load data  
     # DATA = torch.load(file_path) 
     # plotfig(DATA) 
+ 
+    # ======================================== #  
+    # prestress   
+    # ======================================== #  
+    functions = [bayesopt_rs, bayesopt_er, bayesopt_ei]
+    names = ['RS', 'EIxPF-WSE', 'EIxPF']
+    name = 'prestressed'
+    y_optimal = -17886
+    BATCHS = len(functions) 
+    RUNS = 10 # runs (of each algorithm) 
+    ITERS = 30 # iterations (on each run) 
+    NINITIAL = 10 # initial points (on each run) 
+    N = 3 # test every nth iter 
+    DATA = torch.ones(BATCHS, RUNS, ITERS) 
+
+    # filepath 
+    if not os.path.exists('data'): 
+        os.makedirs('data') 
+    file_path = os.path.join('data', 'prestress.pt') 
+
+    # scripts 
+    for j, fun in enumerate(functions): 
+        tic() 
+        scriptloader(j, fun, DATA) 
+        torch.save(DATA, file_path) 
+        toc() 
+ 
+    # load data     
+    DATA = torch.load(file_path) 
+    plotfig(DATA) 
 

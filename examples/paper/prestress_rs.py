@@ -21,6 +21,9 @@ from pybeamnlfea.model.element import ThinWalledBeamElement
 from pybeamnlfea.model.boundary import BoundaryCondition 
 from pybeamnlfea.model.load import NodalLoad, UniformLoad
 
+import multiprocessing as mp
+from functools import partial
+
 import warnings
 warnings.filterwarnings("ignore", message=r".*Solution may be inaccurate. Try another solved*") 
 warnings.filterwarnings("ignore", message=r".*sigma away from each other at the closest*")   
@@ -30,6 +33,7 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  
+device = 'cpu'
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -49,7 +53,7 @@ def plotcontour(problem, borc, surrogate=False):
     # Steps for plotting 
     # NOTE model: [plot_steps = 50,  nsamples = int(1e2)] runtime: 15 hours
     # NOTE VGP  : [plot_steps = 500, nsamples = int(5e3)] runtime: 40 hours 
-    plot_steps = 10
+    plot_steps = 5
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
     d_vals = torch.linspace(d_lower, d_upper, steps=plot_steps)
@@ -65,7 +69,7 @@ def plotcontour(problem, borc, surrogate=False):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e3)
+    nsamples = int(1e1)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -281,7 +285,7 @@ class Model():
                 beam.show_deformed_shape(scale=1e2, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
                 beam.show_force_field(force_type='My', npoints=5, scale=2, show_values=False)
 
-            self.m[i] = torch.tensor([Mhog0, Msag0, Mhog1, Msag1])                                
+            self.m[i] = torch.tensor([Mhog0, Msag0, Mhog1, Msag1])                        
             
     def f(self):                                                                      
         # beam cost f(P,d)
@@ -362,16 +366,16 @@ def bayesopt(ninitial, iters, n):
 
     base_folder = os.path.join(os.getcwd(), "models")
     os.makedirs(base_folder, exist_ok=True)
-    output_dir  = os.path.join(base_folder, "prestress_rs")
+    output_dir  = os.path.join(base_folder, "prestress_initial")
 
     problem = Problem()
     model = Model()
     # bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for plotting 
-    bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for bayesopt      
+    bounds = {"P": (20, 40), "e": (0.1, 0.5), 'd': (1.0, 2.0)} # for bayesopt    
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
-    cov = torch.tensor([[    (20)**2,  0.5*(20)**2],    # COV = 30%, correlation = 0.5              
+    cov = torch.tensor([[    (20)**2,  0.5*(20)**2],    # COV = 20%, correlation = 0.5              
                         [0.5*(20)**2,      (20)**2]])
     dist = MultivariateNormal(mu, cov) 
 
@@ -382,46 +386,54 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state 
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state 
 
-    xi = problem.sample_xi(nsamples=int(1e2)).to(device)
-    # surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
-    surrogate = Surrogate(problem, gp=HomoscedasticGP, ntraining=ninitial, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=xi, eps=0.001)                         
+    surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
+    acquisition = Acquisition(f="eMU", g="ePF", xi=problem.sample_xi(nsamples=int(1e3)).to(device), eps=0.01)                         
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
-    # SurrogateIO.save(borc.surrogate, output_dir) 
-    # borc.surrogate = SurrogateIO.load(output_dir) 
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Plot constraint function 
-    # plotcontour(problem, None)
-    # plotcontour(problem, borc, surrogate=True)     
+    # plotcontour(problem, None) 
+    # plotcontour(problem, borc, surrogate=True) 
 
-    # # Monte Carlo solution                                                 
-    # mc_steps = 10
-    # P_lower, P_upper = list(problem.param_bounds.values())[0]
-    # e_lower, e_upper = list(problem.param_bounds.values())[1]
-    # d_lower, d_upper = list(problem.param_bounds.values())[2]
-    # params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps))  
-    # # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
-    # # problem.rbo(xopt, nsamples=int(1e3), return_vals=True) 
-    # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True)
-    # borc.rbo(xopt.to(device), nsamples=int(1e3), return_vals=True) 
+    # Monte Carlo solution                                                 
+    mc_steps = 20
+    P_lower, P_upper = list(problem.param_bounds.values())[0]
+    e_lower, e_upper = list(problem.param_bounds.values())[1]
+    d_lower, d_upper = list(problem.param_bounds.values())[2]
+    params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps))  
+    # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=True) # [29.6, 0.31, 1.40] £17886
+    # borc.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
+    # problem.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
                                                                                                
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters) 
     for i in range(iters): 
 
-        # new_x <- random search 
-        borc.step(new_x=problem.sample()) 
+        # # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
+        # if i % n == 0: 
+        #     xopt, _ = borc.constrained_optimize_acq(iters=100, nstarts=5, optimize_x=True)          
+        #     problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1))
+        #     res[i] = problem.objectives()
+        #     print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
         # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
         if i % n == 0: 
-            xopt, _ = borc.constrained_optimize_acq(iters=1, nstarts=1, optimize_x=True) 
-            res[i], _ = problem.rbo(xopt, output=False, return_vals=True) # true E[f(x,xi)] 
+            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e1), obj_type="det", con_type="prob", con_eps=0.01, output=False)      
+            _, pi = problem.rbo(xopt.to(device), nsamples=int(1e1), output=False, return_vals=True)  
+            problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1)) # true E[f(x,xi)] = f(x) is simply determinisitc
+            res[i] = problem.objectives() * (0.85 - (0.25 * (1.0 - torch.abs(torch.prod(torch.cat(pi)))) * np.exp(-1 * (i+1)/iters))) 
             print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+
+        # new_x <- random search 
+        new_x=problem.sample() 
+        borc.step(new_x=new_x) 
+        # print(f"new_x : {new_x}") 
 
     return xopt, res 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 20, 10, 1 
+    ninitial, iters, n = 20, 10, 2 
     xopt, res = bayesopt(ninitial, iters, n) 

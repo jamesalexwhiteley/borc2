@@ -350,7 +350,7 @@ class Problem():
 
         if return_vals:
             return mu, [p for p in pi]
-
+        
     def _monte_carlo(self, 
                     obj_fun,
                     con_fun,
@@ -432,8 +432,9 @@ class Problem():
             om = obj_fun(m)
             if obj_type == "det": 
                 if constraint:  
-                    self.internal_model.x = x[0].unsqueeze(0) # independent of probabilistic parameters
-                    res[i] = om
+                    xdet = x[0].unsqueeze(0) # independent of probabilistic parameters
+                    mdet = xdet if surrogate else self.model(xdet)
+                    res[i] = obj_fun(mdet)
             elif obj_type == "mean": 
                 if constraint: 
                     res[i] = torch.mean(om)
@@ -443,7 +444,6 @@ class Problem():
             elif obj_type == "ucb": 
                 if constraint:
                     res[i] = torch.mean(om) + torch.tensor(obj_ucb[0]) * torch.std(om)
-
         max_val, max_index = torch.max(res, 0)
         ind = max_index.numpy()
 

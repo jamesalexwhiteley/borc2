@@ -248,7 +248,7 @@ class Borc():
             print(f"E[f(x,xi)] = {f_mean.detach().cpu().numpy()}")
             if len(pi) > 0:
                 for i in range(pi.size(0)):
-                    print(f"P[g_{i+1}(x,xi)<=0] = {pi[i].detach().cpu().numpy()}")
+                    print(f"P[g_{i+1}(x,xi)<=0] = {pi[i].detach().cpu().numpy()}")                    
 
         if return_vals:
             if len(g_mean) > 0:

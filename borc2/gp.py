@@ -2,9 +2,9 @@ import os
 import torch 
 import gpytorch 
 import warnings
-warnings.filterwarnings("ignore", message=r".*Negative variance values detected.*")  
-# from gpytorch.utils.warnings import GPInputWarning
-# warnings.filterwarnings("ignore", category=GPInputWarning) 
+warnings.filterwarnings("ignore", message=r".*Negative variance values detected.*") 
+from gpytorch.utils.warnings import GPInputWarning
+warnings.filterwarnings("ignore", category=GPInputWarning) 
 
 from borc2.utilities import NormalScaler, GaussianScaler 
 from gpytorch.models import ApproximateGP
@@ -363,7 +363,7 @@ class VariationalHomoscedasticGP(ApproximateGP):
                  train_y, 
                  normalize_x=True,
                  standardize_y=True, 
-                 ntraining=100, 
+                 ntraining=200, 
                  nstarts=5,
                  num_inducing=100):
         """
@@ -436,7 +436,7 @@ class VariationalHomoscedasticGP(ApproximateGP):
         self.train()
         self.likelihood.train()
 
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.02)
 
         mll = gpytorch.mlls.VariationalELBO(self.likelihood, self, num_data=self.train_y.size(0))
 
