@@ -1,6 +1,7 @@
 import torch
 from itertools import product
 from scipy.stats import qmc 
+import gc
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -351,106 +352,266 @@ class Problem():
         if return_vals:
             return mu, [p for p in pi]
         
-    def _monte_carlo(self, 
-                    obj_fun,
-                    con_fun,
-                    surrogate,
-                    params, 
-                    nsamples=int(1e4), 
-                    obj_type="det",
-                    obj_ucb=[1],
-                    con_type="prob", 
-                    con_ucb=[1],
-                    con_eps=0.1,
-                    output=True,
-                    device='cpu'):
-        """
-        Simple monte carlo implementation using full factorial sampling.
+    # def _monte_carlo(self, 
+    #                 obj_fun,
+    #                 con_fun,
+    #                 surrogate,
+    #                 params, 
+    #                 nsamples=int(1e4), 
+    #                 obj_type="det",
+    #                 obj_ucb=[1],
+    #                 con_type="prob", 
+    #                 con_ucb=[1],
+    #                 con_eps=0.1,
+    #                 output=True,
+    #                 device='cpu'):
+    #     """
+    #     Simple monte carlo implementation using full factorial sampling.
 
-        NOTE single objective optimisation only 
-
-        Parameters 
-        ---------- 
-        params : tuple 
-            tuple of values for each deterministic variable, e.g., 
-                x1 = torch.linspace(100, 500, steps=9) 
-                x2 = torch.linspace(400, 800, steps=9) 
-                params = (x1, x2)
-                or alternatively for one variable, just do params = (x1,)
-        obj_type : string 
-            indicates how to calculate objective, and whether the objective is probabilisitic  
-            det : determinisitic, calculate f(x)
-            mean : calculate expected value f1(x) = E[f(x,xi)]
-        con_type : string
-            indicates how to calculate constraint, and whether the objective is probabilisitic
-            prob : of the form g1(x) = P[g(x,xi)<0]>1-epsilon 
-        epsilon : float 
-            risk level for probabilistic constraints 
+    #     Parameters 
+    #     ---------- 
+    #     params : tuple 
+    #         tuple of values for each deterministic variable, e.g., 
+    #             x1 = torch.linspace(100, 500, steps=9) 
+    #             x2 = torch.linspace(400, 800, steps=9) 
+    #             params = (x1, x2)
+    #             or alternatively for one variable, just do params = (x1,)
+    #     obj_type : string 
+    #         indicates how to calculate objective, and whether the objective is probabilisitic  
+    #         det : determinisitic, calculate f(x)
+    #         mean : calculate expected value f1(x) = E[f(x,xi)]
+    #     con_type : string
+    #         indicates how to calculate constraint, and whether the objective is probabilisitic
+    #         prob : of the form g1(x) = P[g(x,xi)<0]>1-epsilon 
+    #     epsilon : float 
+    #         risk level for probabilistic constraints 
         
+    #     """
+    #     if len(params) == 1:
+    #         ffs = torch.stack(params, dim=1)
+    #     else:
+    #         ffs = torch.tensor(list(product(*params))) 
+
+    #     res = torch.full((len(ffs),), -float('inf'))
+    #     if output:
+    #         print(f"Monte Carlo Simulation | Num possible solutions = {len(ffs)}")
+    #     xi = self.sample_xi(nsamples).to(device)
+
+    #     # loop over all combinations 
+    #     for i, x in enumerate(ffs):
+
+    #         # stack monte carlo samples for each x
+    #         xx = torch.stack([x] * nsamples).to(device)
+    #         x = torch.cat((xx, xi), dim=1).to(device)
+
+    #         # either run model or run surrogate 
+    #         if surrogate:
+    #             m = x
+    #         else:
+    #             m = self.model(x)
+
+    #         # estimate constraint(s)
+    #         cm = con_fun(m)
+    #         if surrogate: 
+    #             cm = torch.cat(cm, dim=1)
+
+    #         if len(self.con_fun) == 0:
+    #             constraint = True
+    #         elif con_type == "prob":
+    #             estimated_g = torch.sum(cm <= 0, dim=0) / nsamples 
+    #             constraint = all(estimated_g >= 1 - con_eps)
+    #         elif con_type == "lcb":
+    #             estimated_g = torch.mean(cm, dim=0) - torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
+    #             constraint = all(estimated_g <= 0)
+    #         elif con_type == "ucb":
+    #             estimated_g = torch.mean(cm, dim=0) + torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
+    #             constraint = all(estimated_g <= 0)
+
+    #         # estimated objective (single objective)
+    #         om = obj_fun(m)
+    #         if obj_type == "det": 
+    #             if constraint:  
+    #                 xdet = x[0].unsqueeze(0) # independent of probabilistic parameters
+    #                 mdet = xdet if surrogate else self.model(xdet)
+    #                 res[i] = obj_fun(mdet)
+    #         elif obj_type == "mean": 
+    #             if constraint: 
+    #                 res[i] = torch.mean(om)
+    #         elif obj_type == "lcb": 
+    #             if constraint:
+    #                 res[i] = torch.mean(om) - torch.tensor(obj_ucb[0]) * torch.std(om)
+    #         elif obj_type == "ucb": 
+    #             if constraint:
+    #                 res[i] = torch.mean(om) + torch.tensor(obj_ucb[0]) * torch.std(om)
+    #     max_val, max_index = torch.max(res, 0)
+    #     ind = max_index.numpy()
+
+    #     if output: 
+    #         print(f"Max Objective: {max_val.item():.4f} | Optimal x: {ffs[ind].numpy()}")   
+    #     return ffs[ind].unsqueeze(0), max_val
+
+    def _monte_carlo(self, obj_fun, con_fun, surrogate, params, nsamples=int(1e4), **kwargs):
         """
+        Streaming Monte Carlo that only keeps the best result in memory
+        """
+        device = kwargs.get('device', 'cpu')
+        con_type = kwargs.get('con_type', 'prob')
+        con_eps = kwargs.get('con_eps', 0.1)
+        obj_type = kwargs.get('obj_type', 'det')
+        obj_ucb = kwargs.get('obj_ucb', [1])
+        con_ucb = kwargs.get('con_ucb', [1])
+        output = kwargs.get('output', True)
+        
+        # Fix: Handle params correctly
         if len(params) == 1:
-            ffs = torch.stack(params, dim=1)
+            # For single parameter, create list of tensors
+            param_generator = [torch.tensor([val]) for val in params[0]]
         else:
-            ffs = torch.tensor(list(product(*params))) 
-
-        res = torch.full((len(ffs),), -float('inf'))
-        if output:
-            print(f"Monte Carlo Simulation | Num possible solutions = {len(ffs)}")
+            # For multiple parameters, use product
+            param_generator = [torch.tensor(combo) for combo in product(*params)]
+        
+        best_x = None
+        best_val = -float('inf')
+        total_evaluated = 0
+        feasible_count = 0
+        
+        # Track best infeasible solution as fallback
+        best_infeasible_x = None
+        best_infeasible_val = -float('inf')
+        best_constraint_violation = float('inf')
+        
+        # Pre-generate xi samples once
         xi = self.sample_xi(nsamples).to(device)
-
-        # loop over all combinations 
-        for i, x in enumerate(ffs):
-
-            # stack monte carlo samples for each x
+        
+        for x in param_generator:
+            x = x.to(device)  # Ensure x is on correct device
+            total_evaluated += 1
+            
+            # Stack monte carlo samples
             xx = torch.stack([x] * nsamples).to(device)
-            x = torch.cat((xx, xi), dim=1).to(device)
-
-            # either run model or run surrogate 
-            if surrogate:
-                m = x
-            else:
-                m = self.model(x)
-
-            # estimate constraint(s)
-            cm = con_fun(m)
-            if surrogate: 
-                cm = torch.cat(cm, dim=1)
-
-            if len(self.con_fun) == 0:
-                constraint = True
-            elif con_type == "prob":
-                estimated_g = torch.sum(cm <= 0, dim=0) / nsamples 
-                constraint = all(estimated_g >= 1 - con_eps)
-            elif con_type == "lcb":
-                estimated_g = torch.mean(cm, dim=0) - torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
-                constraint = all(estimated_g <= 0)
-            elif con_type == "ucb":
-                estimated_g = torch.mean(cm, dim=0) + torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
-                constraint = all(estimated_g <= 0)
-
-            # estimated objective (single objective)
-            om = obj_fun(m)
-            if obj_type == "det": 
-                if constraint:  
-                    xdet = x[0].unsqueeze(0) # independent of probabilistic parameters
+            x_full = torch.cat((xx, xi), dim=1)
+            
+            try:
+                # Evaluate
+                if surrogate:
+                    m = x_full
+                else:
+                    with torch.no_grad():
+                        m = self.model(x_full)
+                
+                # Check constraints
+                cm = con_fun(m)
+                if surrogate:
+                    cm = torch.cat(cm, dim=1) if isinstance(cm, list) else cm
+                
+                # Evaluate constraint satisfaction
+                constraint_violation = 0.0
+                if len(self.con_fun) == 0:
+                    constraint = True
+                elif con_type == "prob":
+                    estimated_g = torch.sum(cm <= 0, dim=0) / nsamples
+                    constraint = all(estimated_g >= 1 - con_eps)
+                    # Calculate violation for infeasible tracking
+                    if not constraint:
+                        constraint_violation = torch.sum(torch.maximum(torch.zeros_like(estimated_g), 
+                                                                    (1 - con_eps) - estimated_g)).item()
+                elif con_type == "lcb":
+                    estimated_g = torch.mean(cm, dim=0) - torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
+                    constraint = all(estimated_g <= 0)
+                    if not constraint:
+                        constraint_violation = torch.sum(torch.maximum(torch.zeros_like(estimated_g), 
+                                                                    estimated_g)).item()
+                elif con_type == "ucb":
+                    estimated_g = torch.mean(cm, dim=0) + torch.tensor(con_ucb[0]) * torch.std(cm, dim=0)
+                    constraint = all(estimated_g <= 0)
+                    if not constraint:
+                        constraint_violation = torch.sum(torch.maximum(torch.zeros_like(estimated_g), 
+                                                                    estimated_g)).item()
+                
+                # Calculate objective regardless of feasibility
+                om = obj_fun(m)
+                if obj_type == "det":
+                    xdet = x_full[0].unsqueeze(0)
                     mdet = xdet if surrogate else self.model(xdet)
-                    res[i] = obj_fun(mdet)
-            elif obj_type == "mean": 
-                if constraint: 
-                    res[i] = torch.mean(om)
-            elif obj_type == "lcb": 
+                    current_val = obj_fun(mdet).item()
+                elif obj_type == "mean":
+                    current_val = torch.mean(om).item()
+                elif obj_type == "lcb":
+                    current_val = (torch.mean(om) - torch.tensor(obj_ucb[0]) * torch.std(om)).item()
+                elif obj_type == "ucb":
+                    current_val = (torch.mean(om) + torch.tensor(obj_ucb[0]) * torch.std(om)).item()
+                
                 if constraint:
-                    res[i] = torch.mean(om) - torch.tensor(obj_ucb[0]) * torch.std(om)
-            elif obj_type == "ucb": 
-                if constraint:
-                    res[i] = torch.mean(om) + torch.tensor(obj_ucb[0]) * torch.std(om)
-        max_val, max_index = torch.max(res, 0)
-        ind = max_index.numpy()
+                    feasible_count += 1
+                    # Update best feasible if better
+                    if current_val > best_val:
+                        best_val = current_val
+                        best_x = x.clone()
+                else:
+                    # Track best infeasible solution
+                    if constraint_violation < best_constraint_violation or \
+                    (constraint_violation == best_constraint_violation and current_val > best_infeasible_val):
+                        best_constraint_violation = constraint_violation
+                        best_infeasible_val = current_val
+                        best_infeasible_x = x.clone()
+                
+                # Clean up memory
+                del x_full, m, cm
+                if 'om' in locals():
+                    del om
+                
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    print(f"Memory error at evaluation {total_evaluated}")
+                    torch.cuda.empty_cache() if device == 'cuda' else None
+                    gc.collect()
+                    continue
+                else:
+                    raise e
+            
+            # Periodic garbage collection
+            if total_evaluated % 100 == 0:
+                if device == 'cuda':
+                    torch.cuda.empty_cache()
+                gc.collect()
+                
+            # Periodic progress update
+            if output and total_evaluated % 1000 == 0:
+                print(f"Evaluated {total_evaluated} points, {feasible_count} feasible")
+                gc.collect()
+        
+        # Final cleanup
+        del xi
+        if device == 'cuda':
+            torch.cuda.empty_cache()
+        gc.collect()
+        
+        # Return results with graceful handling of infeasibility
+        if best_x is None:
+            if output:
+                print(f"WARNING: No feasible solution found out of {total_evaluated} evaluations")
+            
+            if best_infeasible_x is not None:
+                if output:
+                    print(f"Returning best infeasible solution:")
+                    print(f"  Objective: {best_infeasible_val:.4f}")
+                    print(f"  Constraint violation: {best_constraint_violation:.4f}")
+                    print(f"  x: {best_infeasible_x.numpy()}")
+                return best_infeasible_x.unsqueeze(0), torch.tensor(best_infeasible_val)
+            else:
+                # No solutions at all (shouldn't happen unless all evaluations failed)
+                if output:
+                    print("ERROR: No solutions evaluated successfully")
+                # Return first point in parameter space as last resort
+                first_x = param_generator[0] if param_generator else torch.zeros(len(params))
+                return first_x.unsqueeze(0), torch.tensor(-float('inf'))
+        
+        if output:
+            print(f"Max Objective: {best_val:.4f} | Optimal x: {best_x.numpy()}")
+            print(f"Found {feasible_count} feasible solutions out of {total_evaluated} evaluated")
+        
+        return best_x.unsqueeze(0), torch.tensor(best_val)
 
-        if output: 
-            print(f"Max Objective: {max_val.item():.4f} | Optimal x: {ffs[ind].numpy()}")   
-        return ffs[ind].unsqueeze(0), max_val
-    
     def monte_carlo(self, 
                     params, 
                     nsamples=int(1e4), 

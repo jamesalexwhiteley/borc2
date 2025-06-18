@@ -130,7 +130,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
     
         """
         self.name = 'HomoscedasticGP'
-        self.jitter = 1e-2
+        self.jitter = 1e-4
         self.normalize_x = normalize_x   
         self.standardize_y = standardize_y 
         self.ntraining = ntraining 
@@ -151,11 +151,14 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         self.train_y = train_y        
 
         likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        likelihood.noise_covar.register_constraint("raw_noise", gpytorch.constraints.GreaterThan(1e-4))
+        # likelihood.raw_noise.data = torch.tensor(1e-3)  # Start with higher noise
+
         super().__init__(train_x, train_y, likelihood)
         self.likelihood = likelihood
         self.mean_module = gpytorch.means.ZeroMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=train_x.size(1))) # use seperate hyperparameter for each dimension 
-        # self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=train_x.size(1))) 
+        # self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=train_x.size(1))) # use seperate hyperparameter for each dimension 
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=train_x.size(1))) 
 
     def forward(self, x): 
         """ 
@@ -203,7 +206,7 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         for _ in range(self.nstarts):
 
             self.initialize()
-            optimizer = torch.optim.Adam(self.parameters(), lr=0.1)  
+            optimizer = torch.optim.Adam(self.parameters(), lr=0.05)  
             mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self) 
 
             for _ in range(self.ntraining):
@@ -211,6 +214,10 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
                 res = self(self.train_x)
                 loss = -mll(res, self.train_y).sum() 
                 loss.backward() 
+
+                # clip gradients
+                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+
                 optimizer.step() 
 
             final_loss = float(loss.detach()) 
@@ -277,16 +284,17 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
             x = self.scaler_x.normalize(x)
 
         with gpytorch.settings.max_preconditioner_size(10): 
-            with gpytorch.settings.max_cholesky_size(512): 
-                if grad:
-                    with gpytorch.settings.fast_pred_var():
-                        self.posterior(self.likelihood(self(x))) 
-                        return self.pred    
+            with gpytorch.settings.cholesky_jitter(self.jitter):
+                with gpytorch.settings.max_cholesky_size(512): 
+                    if grad:
+                        with gpytorch.settings.fast_pred_var():
+                            self.posterior(self.likelihood(self(x))) 
+                            return self.pred    
 
-                else:
-                    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                        self.posterior(self.likelihood(self(x))) 
-                        return self.pred 
+                    else:
+                        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                            self.posterior(self.likelihood(self(x))) 
+                            return self.pred 
                     
     def get_training_data(self, device=None):
         """
@@ -347,15 +355,32 @@ class HomoscedasticGP(gpytorch.models.ExactGP):
         self.train_x = train_x 
         self.train_y = train_y 
 
+        # check for duplicate points
+        distances = torch.cdist(train_x, train_x)
+        min_distance = distances[distances > 0].min()
+        if min_distance < 1e-6:
+            print("Warning: Near-duplicate training points detected")
+            # Remove duplicates or add small noise
+            train_x = train_x + torch.randn_like(train_x) * 1e-2
+        
+        # check condition number
+        if self.normalize_x:
+            # Check if data spans reasonable range
+            data_range = train_x.max(dim=0).values - train_x.min(dim=0).values
+            if (data_range < 1e-6).any():
+                print("Warning: Some dimensions have very small range")
+
         # try to refit the model
-        try:
-            self.fit()  
-        except Exception as e:
-            print(f"Warning: GP retraining failed. Using existing hyperparameters. Error: {e}")
-            with torch.no_grad():
-                super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)           
-                self._clear_cache()
-                self.eval()
+        self.fit() 
+        self.eval()
+        # try:
+        #     self.fit()  
+        # except Exception as e:
+        #     print(f"Warning: GP retraining failed. Using existing hyperparameters. Error: {e}")
+        #     with torch.no_grad():
+        #         super().set_train_data(inputs=self.train_x, targets=self.train_y, strict=False)           
+        #         self._clear_cache()
+        #         self.eval()
 
 class VariationalHomoscedasticGP(ApproximateGP):
     def __init__(self, 
@@ -370,7 +395,7 @@ class VariationalHomoscedasticGP(ApproximateGP):
         Variational GP that exactly matches HomoscedasticGP API
         """
         self.name = 'VariationalHomoscedasticGP'
-        self.jitter = 1e-2
+        self.jitter = 1e-4
         self.normalize_x = normalize_x   
         self.standardize_y = standardize_y 
         self.ntraining = ntraining 
