@@ -1,0 +1,234 @@
+[2025-06-19 11:19:13] ============================================================
+[2025-06-19 11:19:13] Meta-runner started
+[2025-06-19 11:19:13] Will run results.py until completion
+[2025-06-19 11:19:13] Max attempts: 100
+[2025-06-19 11:19:13] ============================================================
+[2025-06-19 11:19:13] No progress file found - starting fresh
+[2025-06-19 11:19:13] 
+Attempt 1/100
+[2025-06-19 11:19:13] ----------------------------------------
+[2025-06-19 11:19:13] Starting results.py
+[2025-06-19 11:38:19] 
+! Interrupted by user
+[2025-06-19 11:38:51] ============================================================
+[2025-06-19 11:38:51] Meta-runner started
+[2025-06-19 11:38:51] Will run results.py until completion
+[2025-06-19 11:38:51] Max attempts: 100
+[2025-06-19 11:38:51] ============================================================
+[2025-06-19 11:38:51] Resuming from: Batch 2, Run 0
+[2025-06-19 11:38:51] 
+Attempt 1/100
+[2025-06-19 11:38:51] ----------------------------------------
+[2025-06-19 11:38:51] Starting results.py
+[2025-06-19 11:39:44] Script exited with error code 3221225477
+[2025-06-19 11:39:44] Waiting 5 seconds before next attempt...
+[2025-06-19 11:39:49] Resuming from: Batch 2, Run 1
+[2025-06-19 11:39:49] 
+Attempt 2/100
+[2025-06-19 11:39:49] ----------------------------------------
+[2025-06-19 11:39:49] Starting results.py
+[2025-06-19 11:40:44] Script exited normally (code 0)
+[2025-06-19 11:40:46] ! Exception occurred: 'charmap' codec can't encode character '\u2713' in position 22: character maps to <undefined>
+[2025-06-19 11:41:53] ============================================================
+[2025-06-19 11:41:53] Meta-runner started
+[2025-06-19 11:41:53] Will run results.py until completion
+[2025-06-19 11:41:53] Max attempts: 100
+[2025-06-19 11:41:53] ============================================================
+[2025-06-19 11:41:53] No progress file found - starting fresh
+[2025-06-19 11:41:53] 
+Attempt 1/100
+[2025-06-19 11:41:53] ----------------------------------------
+[2025-06-19 11:41:53] Starting results.py
+[2025-06-19 11:46:31] Script exited normally (code 0)
+[2025-06-19 11:46:33] SUCCESS: All work completed!
+[2025-06-19 11:46:33] 
+All done! Results script completed successfully.
+[2025-06-19 11:46:33] Check run_until_complete.log for full execution history
+[2025-06-19 11:57:08] ============================================================
+[2025-06-19 11:57:08] Meta-runner started
+[2025-06-19 11:57:08] Will run results.py until completion
+[2025-06-19 11:57:08] Max attempts: 100
+[2025-06-19 11:57:08] ============================================================
+[2025-06-19 11:57:08] No progress file found - starting fresh
+[2025-06-19 11:57:08] 
+Attempt 1/100
+[2025-06-19 11:57:08] ----------------------------------------
+[2025-06-19 11:57:08] Starting results.py
+[2025-06-19 12:05:30] Script exited with error code 3221226505
+[2025-06-19 12:05:30] Waiting 5 seconds before next attempt...
+[2025-06-19 12:05:35] Resuming from: Batch 2, Run 1
+[2025-06-19 12:05:35] 
+Attempt 2/100
+[2025-06-19 12:05:35] ----------------------------------------
+[2025-06-19 12:05:35] Starting results.py
+[2025-06-19 12:08:04] Script exited normally (code 0)
+[2025-06-19 12:08:06] SUCCESS: All work completed!
+[2025-06-19 12:08:06] 
+All done! Results script completed successfully.
+[2025-06-19 12:08:06] Check run_until_complete.log for full execution history
+[2025-06-19 12:08:35] ============================================================
+[2025-06-19 12:08:35] Meta-runner started
+[2025-06-19 12:08:35] Will run results.py until completion
+[2025-06-19 12:08:35] Max attempts: 100
+[2025-06-19 12:08:35] ============================================================
+[2025-06-19 12:08:35] No progress file found - starting fresh
+[2025-06-19 12:08:35] 
+Attempt 1/100
+[2025-06-19 12:08:35] ----------------------------------------
+[2025-06-19 12:08:35] Starting results.py
+[2025-06-19 12:14:05] Script exited with error code 3221225501
+[2025-06-19 12:14:05] Waiting 5 seconds before next attempt...
+[2025-06-19 12:14:10] Resuming from: Batch 1, Run 0
+[2025-06-19 12:14:10] 
+Attempt 2/100
+[2025-06-19 12:14:10] ----------------------------------------
+[2025-06-19 12:14:10] Starting results.py
+[2025-06-19 12:15:27] Script exited with error code 3221226505
+[2025-06-19 12:15:27] Warning: No progress made in last run
+[2025-06-19 12:15:27] Waiting 5 seconds before next attempt...
+[2025-06-19 12:15:32] Resuming from: Batch 1, Run 0
+[2025-06-19 12:15:32] 
+Attempt 3/100
+[2025-06-19 12:15:32] ----------------------------------------
+[2025-06-19 12:15:32] Starting results.py
+[2025-06-19 12:26:54] Script exited with error code 3221225501
+[2025-06-19 12:26:54] Waiting 5 seconds before next attempt...
+[2025-06-19 12:26:59] Resuming from: Batch 1, Run 1
+[2025-06-19 12:26:59] 
+Attempt 4/100
+[2025-06-19 12:26:59] ----------------------------------------
+[2025-06-19 12:26:59] Starting results.py
+[2025-06-19 12:30:47] Script exited with error code 3221225501
+[2025-06-19 12:30:47] Warning: No progress made in last run
+[2025-06-19 12:30:47] Waiting 5 seconds before next attempt...
+[2025-06-19 12:30:52] Resuming from: Batch 1, Run 1
+[2025-06-19 12:30:52] 
+Attempt 5/100
+[2025-06-19 12:30:52] ----------------------------------------
+[2025-06-19 12:30:52] Starting results.py
+[2025-06-19 12:38:05] Script exited with error code 3221225501
+[2025-06-19 12:38:05] Waiting 5 seconds before next attempt...
+[2025-06-19 12:38:10] Resuming from: Batch 2, Run 0
+[2025-06-19 12:38:10] 
+Attempt 6/100
+[2025-06-19 12:38:10] ----------------------------------------
+[2025-06-19 12:38:10] Starting results.py
+[2025-06-19 12:38:59] Script exited with error code 3221226505
+[2025-06-19 12:38:59] Warning: No progress made in last run
+[2025-06-19 12:38:59] Waiting 5 seconds before next attempt...
+[2025-06-19 12:39:04] Resuming from: Batch 2, Run 0
+[2025-06-19 12:39:04] 
+Attempt 7/100
+[2025-06-19 12:39:04] ----------------------------------------
+[2025-06-19 12:39:04] Starting results.py
+[2025-06-19 12:42:11] Script exited with error code 3221225501
+[2025-06-19 12:42:11] Waiting 5 seconds before next attempt...
+[2025-06-19 12:42:16] Resuming from: Batch 2, Run 1
+[2025-06-19 12:42:16] 
+Attempt 8/100
+[2025-06-19 12:42:16] ----------------------------------------
+[2025-06-19 12:42:16] Starting results.py
+[2025-06-19 12:43:31] Script exited with error code 3221225501
+[2025-06-19 12:43:31] Warning: No progress made in last run
+[2025-06-19 12:43:31] Waiting 5 seconds before next attempt...
+[2025-06-19 12:43:36] Resuming from: Batch 2, Run 1
+[2025-06-19 12:43:36] 
+Attempt 9/100
+[2025-06-19 12:43:36] ----------------------------------------
+[2025-06-19 12:43:36] Starting results.py
+[2025-06-19 12:43:56] Script exited with error code 3221225501
+[2025-06-19 12:43:56] Warning: No progress made in last run
+[2025-06-19 12:43:56] Waiting 5 seconds before next attempt...
+[2025-06-19 12:44:01] Resuming from: Batch 2, Run 1
+[2025-06-19 12:44:01] 
+Attempt 10/100
+[2025-06-19 12:44:01] ----------------------------------------
+[2025-06-19 12:44:01] Starting results.py
+[2025-06-19 12:45:24] Script exited with error code 3221225501
+[2025-06-19 12:45:24] Warning: No progress made in last run
+[2025-06-19 12:45:24] Waiting 5 seconds before next attempt...
+[2025-06-19 12:45:29] Resuming from: Batch 2, Run 1
+[2025-06-19 12:45:29] 
+Attempt 11/100
+[2025-06-19 12:45:29] ----------------------------------------
+[2025-06-19 12:45:29] Starting results.py
+[2025-06-19 12:48:07] Script exited normally (code 0)
+[2025-06-19 12:48:09] SUCCESS: All work completed!
+[2025-06-19 12:48:09] 
+All done! Results script completed successfully.
+[2025-06-19 12:48:09] Check run_until_complete.log for full execution history
+[2025-06-19 13:10:50] ============================================================
+[2025-06-19 13:10:50] Meta-runner started
+[2025-06-19 13:10:50] Will run results.py until completion
+[2025-06-19 13:10:50] Max attempts: 100
+[2025-06-19 13:10:50] ============================================================
+[2025-06-19 13:10:50] No progress file found - starting fresh
+[2025-06-19 13:10:50] 
+Attempt 1/100
+[2025-06-19 13:10:50] ----------------------------------------
+[2025-06-19 13:10:50] Starting results.py
+[2025-06-19 13:46:13] Script exited normally (code 0)
+[2025-06-19 13:46:15] SUCCESS: All work completed!
+[2025-06-19 13:46:15] 
+All done! Results script completed successfully.
+[2025-06-19 13:46:15] Check run_until_complete.log for full execution history
+[2025-06-19 13:49:15] ============================================================
+[2025-06-19 13:49:15] Meta-runner started
+[2025-06-19 13:49:15] Will run results.py until completion
+[2025-06-19 13:49:15] Max attempts: 100
+[2025-06-19 13:49:15] ============================================================
+[2025-06-19 13:49:15] No progress file found - starting fresh
+[2025-06-19 13:49:15] 
+Attempt 1/100
+[2025-06-19 13:49:15] ----------------------------------------
+[2025-06-19 13:49:15] Starting results.py
+[2025-06-19 14:14:30] Script exited with error code 3221225501
+[2025-06-19 14:14:30] Waiting 5 seconds before next attempt...
+[2025-06-19 14:14:35] Resuming from: Batch 1, Run 1
+[2025-06-19 14:14:35] 
+Attempt 2/100
+[2025-06-19 14:14:35] ----------------------------------------
+[2025-06-19 14:14:35] Starting results.py
+[2025-06-19 14:16:26] Script exited with error code 3221225501
+[2025-06-19 14:16:26] Warning: No progress made in last run
+[2025-06-19 14:16:26] Waiting 5 seconds before next attempt...
+[2025-06-19 14:16:31] Resuming from: Batch 1, Run 1
+[2025-06-19 14:16:31] 
+Attempt 3/100
+[2025-06-19 14:16:31] ----------------------------------------
+[2025-06-19 14:16:31] Starting results.py
+[2025-06-19 14:29:42] Script exited with error code 3221225501
+[2025-06-19 14:29:42] Waiting 5 seconds before next attempt...
+[2025-06-19 14:29:47] Resuming from: Batch 2, Run 0
+[2025-06-19 14:29:47] 
+Attempt 4/100
+[2025-06-19 14:29:47] ----------------------------------------
+[2025-06-19 14:29:47] Starting results.py
+[2025-06-19 14:32:03] Script exited with error code 3221226505
+[2025-06-19 14:32:03] Warning: No progress made in last run
+[2025-06-19 14:32:03] Waiting 5 seconds before next attempt...
+[2025-06-19 14:32:08] Resuming from: Batch 2, Run 0
+[2025-06-19 14:32:08] 
+Attempt 5/100
+[2025-06-19 14:32:08] ----------------------------------------
+[2025-06-19 14:32:08] Starting results.py
+[2025-06-19 14:44:20] Script exited with error code 3221225501
+[2025-06-19 14:44:20] Waiting 5 seconds before next attempt...
+[2025-06-19 14:44:25] Resuming from: Batch 2, Run 1
+[2025-06-19 14:44:25] 
+Attempt 6/100
+[2025-06-19 14:44:25] ----------------------------------------
+[2025-06-19 14:44:25] Starting results.py
+[2025-06-19 14:45:14] Script exited with error code 3221225501
+[2025-06-19 14:45:14] Warning: No progress made in last run
+[2025-06-19 14:45:14] Waiting 5 seconds before next attempt...
+[2025-06-19 14:45:19] Resuming from: Batch 2, Run 1
+[2025-06-19 14:45:19] 
+Attempt 7/100
+[2025-06-19 14:45:19] ----------------------------------------
+[2025-06-19 14:45:19] Starting results.py
+[2025-06-19 14:53:22] Script exited normally (code 0)
+[2025-06-19 14:53:24] SUCCESS: All work completed!
+[2025-06-19 14:53:24] 
+All done! Results script completed successfully.
+[2025-06-19 14:53:24] Check run_until_complete.log for full execution history

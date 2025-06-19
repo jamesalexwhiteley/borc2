@@ -91,7 +91,7 @@ def main():
         if not os.path.exists(PROGRESS_FILE):
             # Check if this is because we're done or haven't started
             if attempt > 1:
-                log_message("✓ Progress file removed - work completed successfully!")
+                log_message("Progress file removed - work completed successfully!")
                 log_message(f"Total attempts needed: {attempt - 1}")
                 break
             else:
@@ -116,7 +116,7 @@ def main():
                 
                 # Check if progress file is gone (indicating completion)
                 if not os.path.exists(PROGRESS_FILE):
-                    log_message("✓ SUCCESS: All work completed!")
+                    log_message("SUCCESS: All work completed!")
                     break
                 else:
                     log_message("Progress file still exists - may have more work to do")
@@ -137,7 +137,7 @@ def main():
         if current_progress and last_progress:
             if (current_progress['batch'] == last_progress['batch'] and 
                 current_progress['run'] == last_progress['run']):
-                log_message("⚠ Warning: No progress made in last run")
+                log_message("Warning: No progress made in last run")
         last_progress = current_progress
         
         # Wait before next attempt
@@ -147,14 +147,14 @@ def main():
     
     # Final check
     if os.path.exists(PROGRESS_FILE):
-        log_message(f"\n✗ FAILED: Reached maximum attempts ({MAX_ATTEMPTS})")
+        log_message(f"\nFAILED: Reached maximum attempts ({MAX_ATTEMPTS})")
         log_message("Progress file still exists - work incomplete")
         progress = get_progress()
         if progress:
             log_message(f"Stopped at: Batch {progress['batch']}, Run {progress['run']}")
         sys.exit(1)
     else:
-        log_message("\n✓ All done! Results script completed successfully.")
+        log_message("\nAll done! Results script completed successfully.")
         log_message(f"Check {LOG_FILE} for full execution history")
         sys.exit(0)
 

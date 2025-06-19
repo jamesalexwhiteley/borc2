@@ -301,10 +301,10 @@ if __name__ == "__main__":
     name = 'prestressed' 
     y_optimal = -17886 
     BATCHS = len(functions) 
-    RUNS = 2  # runs (of each algorithm) 
+    RUNS = 10  # runs (of each algorithm) 
     ITERS = 50  # iterations (on each run) 
     NINITIAL = 5  # initial points (on each run) 
-    N = 10  # test every nth iter 
+    N = 5  # test every nth iter 
     
     # filepath 
     if not os.path.exists('data'): 
