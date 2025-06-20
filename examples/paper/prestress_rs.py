@@ -33,7 +33,7 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  
-device = 'cpu'
+# device = 'cpu'
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -399,7 +399,7 @@ def bayesopt(ninitial, iters, n):
     # plotcontour(problem, borc, surrogate=True) 
 
     # Monte Carlo solution                                                 
-    mc_steps = 15
+    mc_steps = 2
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
@@ -414,7 +414,7 @@ def bayesopt(ninitial, iters, n):
 
         # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
         if i % n == 0: 
-            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
+            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(5e1), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
             problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1)) # true E[f(x,xi)] = f(x) is simply determinisitc 
             # _, pi = problem.rbo(xopt.to(device), nsamples=int(1e2), output=False, return_vals=True)  
             # res[i] = problem.objectives() * (0.85 - (0.25 * (1.0 - torch.abs(torch.prod(torch.cat(pi)))) * np.exp(-1 * (i+1)/iters))) 
@@ -429,5 +429,5 @@ def bayesopt(ninitial, iters, n):
     return xopt, res 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 20, 20, 2 
+    ninitial, iters, n = 10, 10, 5 
     xopt, res = bayesopt(ninitial, iters, n) 
