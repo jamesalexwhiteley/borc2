@@ -54,7 +54,7 @@ def bayesopt(ninitial, iters, n):
     # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Monte Carlo solution 
-    mc_steps = 2
+    mc_steps = 20
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
@@ -62,7 +62,7 @@ def bayesopt(ninitial, iters, n):
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
-    for i in range(iters):    
+    for i in range(iters): 
 
         # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
         if i % n == 0: 
@@ -75,11 +75,11 @@ def bayesopt(ninitial, iters, n):
 
         # fbest = max_[x,xi] mu 
         borc.acquisition = Acquisition(f="MU") 
-        _, borc.fbest = borc.batch_optimize_acq(iters=2, nstarts=5) 
+        _, borc.fbest = borc.batch_optimize_acq(iters=100, nstarts=5) 
 
         # new_x = argmax_[x,xi] EI x PF 
         borc.acquisition = Acquisition(f="EI", g="PF", xi=xi, eps=1.0) 
-        new_x, _ = borc.batch_optimize_acq(iters=2, nstarts=5) 
+        new_x, _ = borc.batch_optimize_acq(iters=100, nstarts=5) 
         borc.step(new_x=new_x) 
         # print(f"new_x : {new_x}") 
 

@@ -86,7 +86,7 @@ def plotfig(model, problem, borc, points0, points1, new_x, new_xi):
     ax1.fill_between(x.cpu(), lower_bound, upper_bound, color='green', alpha=0.1, label=fr'GP $\pm$2$\sigma$')
     # probability 
     ax2 = ax1.twinx()
-    ax2.scatter(opt_true_x, opt_true_prob, label=r'$\text{P}[g(x,\xi)\leq0]=0.95$', color='white', marker='o', s=50, edgecolor='red', zorder=10)
+    ax2.scatter(opt_true_x, opt_true_prob, label=r'$\text{P}[g(x,\xi)\leq0]=0.98$', color='white', marker='o', s=50, edgecolor='red', zorder=10)
     ax2.axhline(y=opt_true_prob, color='gray', linestyle='--', linewidth=1)
     ax2.plot(x.cpu(), prob_true[0].cpu(), label=r'True $\text{P}[g(x,\xi)\leq0]$', color='red', linewidth=2)
     ax2.plot(x.cpu(), prob_gp[0].cpu(), label=r'GP Mean $\text{P}[g(x,\xi)\leq0]$', color='orange', linestyle='--', linewidth=2)

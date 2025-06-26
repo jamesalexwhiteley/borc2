@@ -33,7 +33,7 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams.update({'font.size': 12})
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  
-# device = 'cpu'
+device = 'cpu'
 
 # Author: James Whiteley (github.com/jamesalexwhiteley)
 
@@ -51,9 +51,9 @@ def plotcontour(problem, borc, surrogate=False):
     d_lower, d_upper = list(problem.param_bounds.values())[2]
 
     # Steps for plotting 
-    # NOTE model: [plot_steps = 50,  nsamples = int(1e2)] runtime: 15 hours
-    # NOTE VGP  : [plot_steps = 500, nsamples = int(5e3)] runtime: 40 hours 
-    plot_steps = 5
+    # NOTE model             : [plot_steps = 50,  nsamples = int(1e2)] runtime: 15 hours 
+    # NOTE VGP (4000 points) : [plot_steps = 500, nsamples = int(5e3)] runtime: 40 hours 
+    plot_steps = 400
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
     d_vals = torch.linspace(d_lower, d_upper, steps=plot_steps)
@@ -69,7 +69,7 @@ def plotcontour(problem, borc, surrogate=False):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e1)
+    nsamples = int(5e3)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -152,9 +152,9 @@ def plotcontour(problem, borc, surrogate=False):
         contour = ax.contourf(P_grid, e_grid, prob_grid, levels=20, cmap='Blues')
         contour_lines = ax.contour(P_grid, e_grid, prob_grid, levels=levels, linewidths=1.0, colors='black')
         ax.clabel(contour_lines, inline=True, fontsize=8, fmt='%.1f')
-        ax.set_xlabel('P (Force)')
-        ax.set_ylabel('e (Eccentricity)')
-        ax.annotate(f"d = {d_cuts[i]:.2f}", xy=(0.95, 0.95), xycoords='axes fraction', 
+        ax.set_xlabel('P (MN)')
+        ax.set_ylabel('e (m)')
+        ax.annotate(f"d = {d_cuts[i]:.2f} m", xy=(0.95, 0.95), xycoords='axes fraction', 
                     fontsize=10, ha='right', va='top',
                     bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.7))
         ax.grid(True, linestyle='--', alpha=0.4)
@@ -165,9 +165,9 @@ def plotcontour(problem, borc, surrogate=False):
         contour = ax.contourf(P_grid, d_grid, prob_grid, levels=20, cmap='Blues')
         contour_lines = ax.contour(P_grid, d_grid, prob_grid, levels=levels, linewidths=1.0, colors='black')
         ax.clabel(contour_lines, inline=True, fontsize=8, fmt='%.1f')
-        ax.set_xlabel('P (Force)')
-        ax.set_ylabel('d (Depth)')
-        ax.annotate(f"e = {e_cuts[i]:.2f}", xy=(0.95, 0.95), xycoords='axes fraction', 
+        ax.set_xlabel('P (MN)')
+        ax.set_ylabel('d (m)')
+        ax.annotate(f"e = {e_cuts[i]:.2f} m", xy=(0.95, 0.95), xycoords='axes fraction', 
                     fontsize=10, ha='right', va='top',
                     bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.7))
         ax.grid(True, linestyle='--', alpha=0.4)
@@ -178,9 +178,9 @@ def plotcontour(problem, borc, surrogate=False):
         contour = ax.contourf(e_grid, d_grid, prob_grid, levels=20, cmap='Blues')
         contour_lines = ax.contour(e_grid, d_grid, prob_grid, levels=levels, linewidths=1.0, colors='black')
         ax.clabel(contour_lines, inline=True, fontsize=8, fmt='%.1f')
-        ax.set_xlabel('e (Eccentricity)')
-        ax.set_ylabel('d (Depth)')
-        ax.annotate(f"P = {P_cuts[i]:.0f}", xy=(0.95, 0.95), xycoords='axes fraction', 
+        ax.set_xlabel('e (m)')
+        ax.set_ylabel('d (m)')
+        ax.annotate(f"P = {P_cuts[i]:.0f} MN", xy=(0.95, 0.95), xycoords='axes fraction', 
                     fontsize=10, ha='right', va='top',
                     bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.7))
         ax.grid(True, linestyle='--', alpha=0.4)
@@ -228,12 +228,12 @@ class Model():
         for i, (P, e, d, k01, k02, _) in enumerate(self.x):  
 
             # 1. Get parameters 
-            theta = 27.5 # deg            
-            k1= (0.7*15) * k01 * 1e6 # N/m
-            k1theta = (0.7*20) * k01 * 1e6 # Nm/rad          
-            k2 = (0.7*2) * k02 * 1e6 # N/m 
+            theta = 27.5 # deg 
             P = -P * 1e6 # N 
             d = d.numpy() 
+            k2 = (0.7*2) * k02 * 1e6 # N/m         
+            k1 = (0.7*12) * k01 * 1e6 # N/m
+            k1theta = (0.7*60) * k01 * 1e6 # Nm/rad 
 
             # 2. Reset loads and supports 
             beam.reset_boundary_conditions()
@@ -253,35 +253,33 @@ class Model():
             beam.add_elastic_boundary_condition(support_2_ind, dof_index=2, stiffness=k1)        # stiff vertical (end) support 
             beam.add_elastic_boundary_condition(support_2_ind, dof_index=4, stiffness=k1theta)   # stiff rotational (end) support 
 
-            # 5. Apply loads (1.35 load factor applied)
+            # 5. Apply loads (1.0 load factor since SLS)
             R, W = 1185e3, 5400e3 # N 
             Rx = R * math.cos(math.radians(theta))          
             Ry = R * math.sin(math.radians(theta))                
             V = -(W + Ry)  
             M = (Rx * (21 - (d/2))) - (Ry * (7.3/2 + 1)) - (W * 1) # Nm                                             
-            beam.add_gravity_load([0, 0, -1.35]) 
+            beam.add_gravity_load([0, 0, -1.0]) 
             [beam.add_uniform_moment(i, [0, P*e, 0], UniformLoad) for i in range(n)] # prestress force (-ve) * e above N.A. (+ve) -> sagging moment (-ve)
             
             # 6. Solve model at transfer of prestress (self weight + prestress)
+            [beam.add_uniform_moment(i, [0, -0.05*P*e, 0], UniformLoad) for i in range(n)] # initial losses (5%)
             results = beam.solve() 
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos0, Mneg0 = moment['My_max'], moment['My_min']
             Mhog0, Msag0 = max(next(iter(Mpos0.values())), 0), min(next(iter(Mneg0.values())), 0)   
             if SMOKE_TEST: 
-                print(Mhog0)
-                print(Msag0)
                 beam.show_deformed_shape(scale=1e2, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
                 beam.show_force_field(force_type='My', npoints=5, scale=2, show_values=False)         
             
             # 7. Solve model in service state (self weight + prestress + applied load)
-            beam.add_nodal_load(n, [0, 0, 1.35*V, 0, 1.35*M, 0, 0], NodalLoad)
+            [beam.add_uniform_moment(i, [0, -0.05*P*e, 0], UniformLoad) for i in range(n)] # final losses (10% total)
+            beam.add_nodal_load(n, [0, 0, V, 0, M, 0, 0], NodalLoad) # applied loads 
             results = beam.solve() 
             moment = results.process_element_forces(force_type='My', summary_type='all')
             Mpos1, Mneg1 = moment['My_max'], moment['My_min']
             Mhog1, Msag1 = max(next(iter(Mpos1.values())), 0), min(next(iter(Mneg1.values())), 0)   
             if SMOKE_TEST: 
-                print(Mhog1)
-                print(Msag1)
                 beam.show_deformed_shape(scale=1e2, show_local_axes=False, show_cross_section=True, cross_section_scale=4.0) 
                 beam.show_force_field(force_type='My', npoints=5, scale=2, show_values=False)
 
@@ -301,7 +299,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 0] 
-        stress = (P/A + Mhog/Z) * 1e-6 # kN/mm2, for hogging at top fiber, stress = P/A (-ve) + M/Z (+ve)
+        stress = (0.95*P/A + Mhog/Z) * 1e-6 # kN/mm2, for hogging at top fiber, stress = P/A (-ve) + M/Z (+ve)
         # Want σ < ft, i.e., no tensile stress -> want g < 0
         return stress - 0.0
 
@@ -310,7 +308,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 0] 
-        stress = (P/A - Mhog/Z) * 1e-6 # kN/mm2, for hogging at bottom fiber, stress = P/A (-ve) + M/Z (-ve)
+        stress = (0.95*P/A - Mhog/Z) * 1e-6 # kN/mm2, for hogging at bottom fiber, stress = P/A (-ve) + M/Z (-ve)
         # Want -σ < fc, i.e., compressive stress within limit -> want g < 0                            
         return - stress - 20.0 
         
@@ -319,7 +317,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 1] 
-        stress = (P/A + Msag/Z) * 1e-6 
+        stress = (0.95*P/A + Msag/Z) * 1e-6 
         return - stress - 20.0
 
     def g4(self): 
@@ -327,7 +325,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 1] 
-        stress = (P/A - Msag/Z) * 1e-6 
+        stress = (0.95*P/A - Msag/Z) * 1e-6 
         return stress - 0.0                                 
     
     def g5(self):                                                                               
@@ -335,7 +333,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 2] 
-        stress = (P/A + Mhog/Z) * 1e-6 
+        stress = (0.9*P/A + Mhog/Z) * 1e-6 
         return stress - 0.0
 
     def g6(self): 
@@ -343,7 +341,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Mhog = self.m[:, 2] 
-        stress = (P/A - Mhog/Z) * 1e-6 
+        stress = (0.9*P/A - Mhog/Z) * 1e-6 
         return - stress - 30.0 
         
     def g7(self): 
@@ -351,7 +349,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 3] 
-        stress = (P/A + Msag/Z) * 1e-6 
+        stress = (0.9*P/A + Msag/Z) * 1e-6 
         return - stress - 30.0 
 
     def g8(self): 
@@ -359,7 +357,7 @@ class Model():
         P, d, b = -self.x[:, 0] * 1e6, self.x[:, 2], self.x[:, 5]                           
         A, Z = b*d, b*d**2/6 
         Msag = self.m[:, 3] 
-        stress = (P/A - Msag/Z) * 1e-6 
+        stress = (0.9*P/A - Msag/Z) * 1e-6 
         return stress - 0.0 
 
 def bayesopt(ninitial, iters, n): 
@@ -370,13 +368,13 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    # bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for plotting 
-    bounds = {"P": (20, 40), "e": (0.1, 0.5), 'd': (1.0, 2.0)} # for bayesopt    
+    bounds = {"P": (15, 50), "e": (-0.1, 0.5), 'd': (0.75, 2.0)} # for plotting 
+    # bounds = {"P": (10, 50), "e": (0.1, 0.5), 'd': (1.0, 2.0)} # for bayesopt 
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
-    cov = torch.tensor([[    (20)**2,  0.5*(20)**2],    # COV = 20%, correlation = 0.5              
-                        [0.5*(20)**2,      (20)**2]])
+    cov = torch.tensor([[    (30)**2,  0.5*(30)**2],    # COV = 30%, correlation = 0.5              
+                        [0.5*(30)**2,      (30)**2]])
     dist = MultivariateNormal(mu, cov) 
 
     problem.set_bounds(bounds) 
@@ -386,48 +384,50 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g1, model.g2, model.g3, model.g4]) # Transfer state 
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state 
 
-    surrogate = Surrogate(problem, gp=HomoscedasticGP, ntraining=ninitial, nstarts=5) 
+    surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
     acquisition = Acquisition(f="eMU", g="ePF", xi=problem.sample_xi(nsamples=int(1e3)).to(device), eps=0.01)                         
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
     borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
-    # SurrogateIO.save(borc.surrogate, output_dir) 
-    # borc.surrogate = SurrogateIO.load(output_dir) 
+    SurrogateIO.save(borc.surrogate, output_dir) 
+    borc.surrogate = SurrogateIO.load(output_dir) 
 
-    # Plot constraint function 
-    # plotcontour(problem, None) 
-    # plotcontour(problem, borc, surrogate=True) 
-
-    # Monte Carlo solution                                                 
-    mc_steps = 2
+    # Monte Carlo solution 
+    mc_steps = 20 
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
     params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps))  
-    # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # [29.6, 0.31, 1.40] £17886
+    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # [29.6, 0.31, 1.40] £17886
+    xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(5e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # [29.6, 0.31, 1.40] £17886
     # borc.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
     # problem.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
+
+    # Plot constraint function 
+    # plotcontour(problem, None) 
+    plotcontour(problem, borc, surrogate=True) 
                                                                                                
-    # BayesOpt used to sequentially sample [x,xi] points 
-    res = torch.ones(iters) 
-    for i in range(iters): 
+    # # BayesOpt used to sequentially sample [x,xi] points 
+    # res = torch.ones(iters) 
+    # for i in range(iters): 
 
-        # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
-        if i % n == 0: 
-            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(5e1), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
-            problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1)) # true E[f(x,xi)] = f(x) is simply determinisitc 
-            # _, pi = problem.rbo(xopt.to(device), nsamples=int(1e2), output=False, return_vals=True)  
-            # res[i] = problem.objectives() * (0.85 - (0.25 * (1.0 - torch.abs(torch.prod(torch.cat(pi)))) * np.exp(-1 * (i+1)/iters))) 
-            res[i] = problem.objectives() 
-            print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
+    #     # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
+    #     if i % n == 0: 
+    #         xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(5e1), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
+    #         problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1)) # true E[f(x,xi)] = f(x) is simply determinisitc 
+    #         # _, pi = problem.rbo(xopt.to(device), nsamples=int(1e2), output=False, return_vals=True)  
+    #         # res[i] = problem.objectives() * (0.85 - (0.25 * (1.0 - torch.abs(torch.prod(torch.cat(pi)))) * np.exp(-1 * (i+1)/iters))) 
+    #         res[i] = problem.objectives() 
+    #         print(f"Max Objective: {res[i].item():.4f} | Optimal x : {xopt}") 
 
-        # new_x <- random search 
-        new_x=problem.sample() 
-        borc.step(new_x=new_x) 
-        # print(f"new_x : {new_x}") 
+    #     # new_x <- random search 
+    #     new_x=problem.sample() 
+    #     borc.step(new_x=new_x) 
+    #     # print(f"new_x : {new_x}") 
 
-    return xopt, res 
+    # return xopt, res 
+    return None, None 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 10, 10, 5 
+    ninitial, iters, n = 4000, 10, 5 
     xopt, res = bayesopt(ninitial, iters, n) 

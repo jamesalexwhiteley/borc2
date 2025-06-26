@@ -19,6 +19,8 @@ def plotdata(d, x, data, names, name, y_optimal):
 
     # Data for plotting 
     error = torch.abs(data - y_optimal)
+    valid_mask = ~torch.any(torch.isnan(error), dim=1)
+    error = error[valid_mask]
 
     # fig definition
     plt.figure(figsize=(6.25, 6))
@@ -62,7 +64,7 @@ def main():
     y_optimal = -17886 
     
     # YOU NEED TO SET THIS TO MATCH YOUR EXPERIMENT
-    N = 2  # whatever N value was used when generating the data
+    N = 10  # whatever N value was used when generating the data
     
     # Load the data
     file_path = 'data/prestress.pt'
@@ -75,15 +77,15 @@ def main():
     except TypeError:
         DATA = torch.load(file_path)
     
-    print(f"Loaded data shape: {DATA.shape}")
+    # print(f"Loaded data shape: {DATA.shape}")
     ITERS = DATA.shape[2]
     
     # Extract only the computed points (every N-th iteration starting from 0)
     indices = list(range(0, ITERS, N))
     DATA_computed = DATA[:, :, indices]
     
-    print(f"Extracted computed points at iterations: {indices}")
-    print(f"New data shape: {DATA_computed.shape}")
+    # print(f"Extracted computed points at iterations: {indices}")
+    # print(f"New data shape: {DATA_computed.shape}")
     
     # Generate x-axis values for the computed points
     x = torch.tensor(indices)
