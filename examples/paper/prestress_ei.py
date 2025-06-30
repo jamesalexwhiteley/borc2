@@ -29,8 +29,7 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    # bounds = {"P": (25, 40), "e": (0.1, 0.4), 'd': (1.4, 2.0)} # for plotting 
-    bounds = {"P": (20, 40), "e": (0.1, 0.5), 'd': (1.0, 2.0)} # for bayesopt       
+    bounds = {"P": (5.0, 25.0), "e": (0.0, 0.45), 'd': (0.5, 2.0)} # for bayesopt 
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
@@ -54,7 +53,7 @@ def bayesopt(ninitial, iters, n):
     # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Monte Carlo solution 
-    mc_steps = 20
+    mc_steps = 10
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
@@ -66,7 +65,7 @@ def bayesopt(ninitial, iters, n):
 
         # argmax_x E[f(x,xi)] s.t. P[g_i(x,xi)<0]>1-β, i=1,2...,m
         if i % n == 0: 
-            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(5e1), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
+            xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="mean", con_type="prob", con_eps=0.01, output=False)     
             problem.model(torch.cat([xopt, problem.sample_xi(nsamples=1).to(device)], dim=1)) # true E[f(x,xi)] = f(x) is simply determinisitc 
             # _, pi = problem.rbo(xopt.to(device), nsamples=int(1e2), output=False, return_vals=True)  
             # res[i] = problem.objectives() * (0.85 - (0.25 * (1.0 - torch.abs(torch.prod(torch.cat(pi)))) * np.exp(-1 * (i+1)/iters))) 

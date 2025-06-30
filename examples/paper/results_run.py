@@ -70,8 +70,8 @@ def main():
     
     # Experiment parameters
     RUNS = 20       # runs of each algorithm
-    ITERS = 50      # iterations per run
-    NINITIAL = 5    # initial points per run
+    ITERS = 30      # iterations per run
+    NINITIAL = 10    # initial points per run
     N = 10          # test every Nth iteration
     
     # Derived values

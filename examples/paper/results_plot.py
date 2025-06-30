@@ -61,7 +61,8 @@ def main():
     # Configuration
     names = ['RS', 'EIxPF-WSE', 'EIxPF'] 
     name = 'prestressed' 
-    y_optimal = -17886 
+    # y_optimal = -9981.53 
+    y_optimal = 0.0
     
     # YOU NEED TO SET THIS TO MATCH YOUR EXPERIMENT
     N = 10  # whatever N value was used when generating the data
