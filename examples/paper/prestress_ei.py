@@ -29,7 +29,7 @@ def bayesopt(ninitial, iters, n):
 
     problem = Problem()
     model = Model()
-    bounds = {"P": (5.0, 25.0), "e": (0.0, 0.45), 'd': (0.5, 2.0)} # for bayesopt 
+    bounds = {"P": (2.0, 15.0), "e": (-0.45, 0.45), 'd': (0.5, 1.5)} # for bayesopt 
 
     # Uncertain parameters: ground stiffness for two pile groups
     mu = torch.tensor([100.0, 100.0])                   # k0_1, k0_2 [kN/mm]                
@@ -53,11 +53,10 @@ def bayesopt(ninitial, iters, n):
     # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Monte Carlo solution 
-    mc_steps = 10
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
-    params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
+    params=(torch.linspace(P_lower, P_upper, steps=5), torch.linspace(e_lower, e_upper, steps=5), torch.linspace(d_lower, d_upper, steps=5)) 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 
