@@ -50,10 +50,10 @@ def plotcontour(problem, borc, surrogate=False):
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
 
-    # Steps for plotting W
+    # Steps for plotting 
     # NOTE model             : [plot_steps = 50,  nsamples = int(1e2)] runtime: 15 hours 
     # NOTE VGP (4000 points) : [plot_steps = 500, nsamples = int(5e3)] runtime: 40 hours 
-    plot_steps = 400
+    plot_steps = 10
     P_vals = torch.linspace(P_lower, P_upper, steps=plot_steps)
     e_vals = torch.linspace(e_lower, e_upper, steps=plot_steps)
     d_vals = torch.linspace(d_lower, d_upper, steps=plot_steps)
@@ -69,7 +69,7 @@ def plotcontour(problem, borc, surrogate=False):
     ed_results = [] # f(e,d) with different P values
 
     # Monte Carlo samples
-    nsamples = int(1e3)
+    nsamples = int(1e2)
     tic()
 
     # Calculate f(P,e) for different d values
@@ -385,27 +385,33 @@ def bayesopt(ninitial, iters, n):
     problem.add_constraints([model.g5, model.g6, model.g7, model.g8]) # Service state 
 
     surrogate = Surrogate(problem, gp=VariationalHomoscedasticGP, ntraining=ninitial, nstarts=5) 
-    acquisition = Acquisition(f="eMU", g="ePF", xi=problem.sample_xi(nsamples=int(1e3)).to(device), eps=0.01)                         
+    acquisition = Acquisition(f="eMU", g="ePF", xi=problem.sample_xi(nsamples=int(1e3)).to(device), eps=0.01)                        
     borc = Borc(surrogate, acquisition) 
     borc.cuda(device) 
-    borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
-    SurrogateIO.save(borc.surrogate, output_dir) 
+    # borc.initialize(nsamples=ninitial, sample_method="lhs", max_acq=torch.tensor([0.0])) 
+    # SurrogateIO.save(borc.surrogate, output_dir) 
     # borc.surrogate = SurrogateIO.load(output_dir) 
 
     # Monte Carlo solution 
-    mc_steps = 20 
+    # mc_steps = 20 
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
-    params=(torch.linspace(P_lower, P_upper, steps=mc_steps), torch.linspace(e_lower, e_upper, steps=mc_steps), torch.linspace(d_lower, d_upper, steps=mc_steps)) 
-    xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # £5583.91 [10.13, 0.46, 0.5]
-    # xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) 
+    params=(torch.linspace(P_lower, P_upper, steps=5), torch.linspace(e_lower, e_upper, steps=5), torch.linspace(d_lower, d_upper, steps=5)) 
+    # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # £5583.91 [10.13, 0.46, 0.5]
+    xopt, _ = problem.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) 
     # borc.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
     # problem.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 
 
+    # VGP | 5583.91 [10.13, 0.46, 0.5] (1000)
+    # VGP | 5586.35 [ 9.61, 0.5 , 0.5] (1000)
+    # VGP | 7446.37 [12.76, 0.5 , 0.5] (2000)
+    # VGP | 5575.23 [10.13, 0.5 , 0.5] (3000)
+    # VGP | 5575.23 [10.66, 0.5 , 0.5] (4000)
+
     # Plot constraint function 
     # plotcontour(problem, None) 
-    plotcontour(problem, borc, surrogate=True) 
+    # plotcontour(problem, borc, surrogate=True) 
                                                                                                
     # # BayesOpt used to sequentially sample [x,xi] points 
     # res = torch.ones(iters) 
@@ -429,5 +435,5 @@ def bayesopt(ninitial, iters, n):
     return None, None 
 
 if __name__ == "__main__": 
-    ninitial, iters, n = 1000, 10, 5 
+    ninitial, iters, n = 4000, 10, 5 
     xopt, res = bayesopt(ninitial, iters, n) 
