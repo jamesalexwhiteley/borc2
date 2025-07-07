@@ -396,7 +396,7 @@ def bayesopt(ninitial, iters, n):
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
-    params=(torch.linspace(P_lower, P_upper, steps=5), torch.linspace(e_lower, e_upper, steps=5), torch.linspace(d_lower, d_upper, steps=5)) 
+    params=(torch.linspace(P_lower, P_upper, steps=20), torch.linspace(e_lower, e_upper, steps=4), torch.linspace(d_lower, d_upper, steps=4)) 
     # xopt, _ = borc.surrogate.monte_carlo(params=params, nsamples=int(1e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) # £5584.77 [10.13, 0.45, 0.5]
     # xopt, _ = problem.monte_carlo(params=params, nsamples=int(2e2), obj_type="det", con_type="prob", con_eps=0.01, output=True) 
     # borc.rbo(xopt.to(device), nsamples=int(1e2), return_vals=True) 

@@ -53,7 +53,7 @@ def bayesopt(ninitial, iters, n):
     P_lower, P_upper = list(problem.param_bounds.values())[0]
     e_lower, e_upper = list(problem.param_bounds.values())[1]
     d_lower, d_upper = list(problem.param_bounds.values())[2]
-    params=(torch.linspace(P_lower, P_upper, steps=5), torch.linspace(e_lower, e_upper, steps=5), torch.linspace(d_lower, d_upper, steps=5)) 
+    params=(torch.linspace(P_lower, P_upper, steps=20), torch.linspace(e_lower, e_upper, steps=4), torch.linspace(d_lower, d_upper, steps=4)) 
 
     # BayesOpt used to sequentially sample [x,xi] points 
     res = torch.ones(iters, ) 

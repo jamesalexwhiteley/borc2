@@ -69,10 +69,10 @@ def main():
     names = ['RS', 'EIxPF-WSE', 'EIxPF'] 
     
     # Experiment parameters
-    RUNS = 2       # runs of each algorithm
-    ITERS = 30      # iterations per run
+    RUNS = 40       # runs of each algorithm
+    ITERS = 50      # iterations per run
     NINITIAL = 5    # initial points per run
-    N = 10          # test every Nth iteration
+    N = 5           # test every Nth iteration
     
     # Derived values
     BATCHS = len(functions)

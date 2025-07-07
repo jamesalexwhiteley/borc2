@@ -63,9 +63,10 @@ def main():
     name = 'prestressed' 
     # y_optimal = -9981.53 
     y_optimal = -5584.77
+    # y_optimal = -5239.96
     
     # YOU NEED TO SET THIS TO MATCH YOUR EXPERIMENT
-    N = 10  # whatever N value was used when generating the data
+    N = 5  # whatever N value was used when generating the data
     
     # Load the data
     file_path = 'data/prestress.pt'
